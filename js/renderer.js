@@ -686,6 +686,10 @@
               <rect x="746" y="570" width="72" height="50" rx="8" fill="url(#brassBody)" stroke="#fcd34d" stroke-width="1.8"/>
               <rect x="752" y="576" width="60" height="38" rx="5" fill="#0f172a" stroke="#b45309" stroke-width="1.2"/>
               <path id="outdoor-txv-dome" d="M 762 570 Q 782 544 802 570 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1.5"/>
+              <path id="outdoor-txv-capillary-line" d="M 782 555 L 782 528 Q 782 510 796 510 L 796 162" fill="none" stroke="#f59e0b" stroke-width="2" opacity="0.18"/>
+              <rect id="outdoor-txv-sensing-bulb" x="780" y="136" width="32" height="10" rx="5" fill="#fbbf24" stroke="#78350f" stroke-width="1.4" opacity="0.25"/>
+              <line id="outdoor-bulb-strap-1" x1="786" y1="135" x2="786" y2="158" stroke="#cbd5e1" stroke-width="2" opacity="0.25"/>
+              <line id="outdoor-bulb-strap-2" x1="806" y1="135" x2="806" y2="158" stroke="#cbd5e1" stroke-width="2" opacity="0.25"/>
             </g>
 
             <!-- Service Ports (Schrader Valves) + Manifold Gauge Tap Lines -->
@@ -718,11 +722,13 @@
 
             <!-- Interactive Click / Hover Hit Targets for Inspection -->
             <g id="hit-targets">
-              <rect data-node="evaporator" x="62" y="242" width="244" height="282" rx="10" class="hit-zone"/>
-              <rect data-node="condenser" x="896" y="218" width="234" height="302" rx="10" class="hit-zone"/>
+              <rect id="hit-coil-indoor" data-node="evaporator" x="62" y="242" width="244" height="282" rx="10" class="hit-zone"/>
+              <rect id="hit-coil-outdoor" data-node="condenser" x="896" y="218" width="234" height="302" rx="10" class="hit-zone"/>
               <rect data-node="compressor" x="590" y="260" width="154" height="234" rx="34" class="hit-zone"/>
-              <rect data-node="discharge_line" x="625" y="138" width="220" height="84" rx="12" class="hit-zone"/>
-              <rect data-node="suction_line" x="340" y="130" width="215" height="55" rx="12" class="hit-zone"/>
+              <rect id="hit-top-right" data-node="discharge_line" x="655" y="130" width="200" height="60" rx="12" class="hit-zone"/>
+              <rect id="hit-disch-stub" data-node="discharge_line" x="620" y="190" width="72" height="70" rx="10" class="hit-zone"/>
+              <rect id="hit-top-left" data-node="suction_line" x="340" y="130" width="215" height="55" rx="12" class="hit-zone"/>
+              <rect id="hit-suct-accum" data-node="suction_line" x="480" y="215" width="94" height="225" rx="12" class="hit-zone"/>
               <rect data-node="filter_drier" x="468" y="566" width="88" height="60" rx="10" class="hit-zone"/>
               <rect data-node="liquid_line" x="576" y="566" width="130" height="60" rx="10" class="hit-zone"/>
               <rect id="hit-valve-indoor" data-node="metering_device" x="346" y="544" width="94" height="84" rx="10" class="hit-zone"/>
@@ -743,8 +749,8 @@
     _bindInteractiveZones() {
       const zones = this.overlayEl.querySelectorAll('.hit-zone');
       zones.forEach((z) => {
-        const nodeId = z.getAttribute('data-node');
         z.addEventListener('mouseenter', () => {
+          const nodeId = z.getAttribute('data-node');
           this.highlightedNodeId = nodeId;
           if (this.onHoverNode) this.onHoverNode(nodeId);
         });
@@ -753,6 +759,7 @@
           if (this.onHoverNode) this.onHoverNode(null);
         });
         z.addEventListener('click', () => {
+          const nodeId = z.getAttribute('data-node');
           this.selectedNodeId = this.selectedNodeId === nodeId ? null : nodeId;
           if (this.onSelectNode) this.onSelectNode(this.selectedNodeId);
         });
@@ -909,11 +916,21 @@
         rvTag.textContent = isCooling ? '4-WAY VALVE (COOLING)' : '4-WAY VALVE (HEATING)';
       }
 
-      // Dynamically map indoor/outdoor valve hit zones to active metering_device vs check_bypass
+      // Dynamically map reversible hit zones based on Cooling vs Heating mode
       const hitIndoor = this.overlayEl.querySelector('#hit-valve-indoor');
       const hitOutdoor = this.overlayEl.querySelector('#hit-valve-outdoor');
       if (hitIndoor) hitIndoor.setAttribute('data-node', isCooling ? 'metering_device' : 'check_bypass');
       if (hitOutdoor) hitOutdoor.setAttribute('data-node', isCooling ? 'check_bypass' : 'metering_device');
+
+      const hitCoilIn = this.overlayEl.querySelector('#hit-coil-indoor');
+      const hitCoilOut = this.overlayEl.querySelector('#hit-coil-outdoor');
+      if (hitCoilIn) hitCoilIn.setAttribute('data-node', isCooling ? 'evaporator' : 'condenser');
+      if (hitCoilOut) hitCoilOut.setAttribute('data-node', isCooling ? 'condenser' : 'evaporator');
+
+      const hitTopLeft = this.overlayEl.querySelector('#hit-top-left');
+      const hitTopRight = this.overlayEl.querySelector('#hit-top-right');
+      if (hitTopLeft) hitTopLeft.setAttribute('data-node', isCooling ? 'suction_line' : 'discharge_line');
+      if (hitTopRight) hitTopRight.setAttribute('data-node', isCooling ? 'discharge_line' : 'suction_line');
 
       // TXV diaphragm dome & capillary routing visibility based on mode & metering
       const indoorDome = this.svgEl.querySelector('#indoor-txv-dome');
@@ -923,12 +940,24 @@
 
       const capLine = this.svgEl.querySelector('#txv-capillary-line');
       const bulb = this.svgEl.querySelector('#txv-sensing-bulb');
-      const showBulb = s.metering === 'txv' && isCooling;
-      if (capLine) capLine.setAttribute('opacity', showBulb ? '1' : '0.18');
+      const showIndoorBulb = s.metering === 'txv' && isCooling;
+      if (capLine) capLine.setAttribute('opacity', showIndoorBulb ? '1' : '0.18');
       if (bulb) {
-        bulb.setAttribute('opacity', showBulb ? '1' : '0.25');
-        // Physically unstrap bulb visually when fault === 'txv_unstrapped'!
-        bulb.setAttribute('transform', s.fault === 'txv_unstrapped' ? 'translate(14, 24) rotate(28 408 141)' : '');
+        bulb.setAttribute('opacity', showIndoorBulb ? '1' : '0.25');
+        bulb.setAttribute('transform', showIndoorBulb && s.fault === 'txv_unstrapped' ? 'translate(14, 24) rotate(28 408 141)' : '');
+      }
+
+      const outCapLine = this.svgEl.querySelector('#outdoor-txv-capillary-line');
+      const outBulb = this.svgEl.querySelector('#outdoor-txv-sensing-bulb');
+      const outStrap1 = this.svgEl.querySelector('#outdoor-bulb-strap-1');
+      const outStrap2 = this.svgEl.querySelector('#outdoor-bulb-strap-2');
+      const showOutdoorBulb = s.metering === 'txv' && !isCooling;
+      if (outCapLine) outCapLine.setAttribute('opacity', showOutdoorBulb ? '1' : '0.18');
+      if (outStrap1) outStrap1.setAttribute('opacity', showOutdoorBulb ? '1' : '0.25');
+      if (outStrap2) outStrap2.setAttribute('opacity', showOutdoorBulb ? '1' : '0.25');
+      if (outBulb) {
+        outBulb.setAttribute('opacity', showOutdoorBulb ? '1' : '0.25');
+        outBulb.setAttribute('transform', showOutdoorBulb && s.fault === 'txv_unstrapped' ? 'translate(-14, 24) rotate(-28 796 141)' : '');
       }
 
       // Ensure visual smoothing state initialized; glides dynamically in render()
@@ -1011,17 +1040,20 @@
           <text x="0" y="15" text-anchor="middle" fill="${isLight ? '#475569' : '#94a3b8'}" font-size="8.5" font-weight="600" font-family="ui-monospace, monospace">${sub}</text>
         </g>`;
 
-      const returnSub = `${s.inputs.indoorRH}% RH • ${Math.round(p.evapAir.cfm)} CFM`;
+      const indoorCFM = isCooling ? p.evapAir.cfm : p.condAir.cfm;
+      const outdoorCFM = isCooling ? p.condAir.cfm : p.evapAir.cfm;
+      const returnSub = `${s.inputs.indoorRH}% RH • ${Math.round(indoorCFM)} CFM`;
       const supplySub = isCooling
         ? `ΔT -${p.indoorDeltaT.toFixed(1)}°F • ${(p.tons).toFixed(2)} T`
         : `ΔT +${p.indoorDeltaT.toFixed(1)}°F • ${(p.tons).toFixed(2)} T`;
+      const suctProbeX = isCooling ? 452 : 752;
 
       probesGroup.innerHTML = `
         ${probePill(178, 42, 'RETURN AIR', `${s.inputs.indoorDB.toFixed(0)}°F DB`, returnSub, '#f59e0b')}
         ${probePill(178, 636, 'SUPPLY AIR', `${p.indoorSupplyDB.toFixed(1)}°F`, supplySub, isCooling ? '#38bdf8' : '#ef4444')}
-        ${probePill(1022, 34, isCooling ? 'COND EXHAUST' : 'EVAP EXHAUST', `${p.outdoorExhaustDB.toFixed(1)}°F`, `${Math.round(p.condAir.cfm)} CFM`, isCooling ? '#ef4444' : '#38bdf8')}
+        ${probePill(1022, 34, isCooling ? 'COND EXHAUST' : 'EVAP EXHAUST', `${p.outdoorExhaustDB.toFixed(1)}°F`, `${Math.round(outdoorCFM)} CFM`, isCooling ? '#ef4444' : '#38bdf8')}
         ${probePill(1094, 542, 'OUTDOOR AIR', `${s.inputs.outdoorDB.toFixed(0)}°F`, `${s.inputs.condAirflowPct}% Airflow`, '#94a3b8')}
-        ${probePill(452, 114, 'SUCTION LINE', `${g.suctionTempF.toFixed(1)}°F`, `SH ${g.superheatF.toFixed(1)}°F | ${RefDB.formatPressureShort(g.lowPsig)} psi`, '#3b82f6')}
+        ${probePill(suctProbeX, 114, 'SUCTION LINE', `${g.suctionTempF.toFixed(1)}°F`, `SH ${g.superheatF.toFixed(1)}°F | ${RefDB.formatPressureShort(g.lowPsig)} psi`, '#3b82f6')}
         ${probePill(740, 232, 'DISCHARGE GAS', `${g.dischargeTempF.toFixed(0)}°F`, `CR ${p.compressionRatio.toFixed(2)}:1`, p.isOverheating ? '#ef4444' : '#f97316')}
         ${probePill(698, 545, 'LIQUID LINE', `${g.liquidTempF.toFixed(1)}°F`, `SC ${g.subcoolingF.toFixed(1)}°F | ${RefDB.formatPressureShort(g.highPsig)} psi`, '#db2777')}
       `;
