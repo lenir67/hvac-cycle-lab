@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HVAC/R Interactive Refrigerant Cycle Simulator</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- TOP COMMAND BAR -->
+  <header class="topbar">
+    <div class="brand-group">
+      <div class="brand-icon">R/C</div>
+      <div>
+        <div class="brand-title">HVAC/R Cycle Lab</div>
+        <div class="brand-sub">
+          <span class="cyl-badge" id="top-cyl-badge">
+            <span class="cyl-dot" id="top-cyl-dot" style="background:#ec4899;"></span>
+            <span id="top-ref-tag">R-410A • A1</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar-controls">
+      <div class="ctrl-pill">
+        <label for="sel-refrigerant">Ref</label>
+        <select id="sel-refrigerant">
+          <option value="R410A" selected>R-410A</option>
+          <option value="R454B">R-454B (A2L)</option>
+          <option value="R22">R-22</option>
+          <option value="R134A">R-134a</option>
+          <option value="R404A">R-404A</option>
+        </select>
+      </div>
+
+      <div class="ctrl-pill">
+        <label for="sel-mode">Mode</label>
+        <select id="sel-mode">
+          <option value="cooling" selected>A/C Cooling</option>
+          <option value="heating">Heat Pump Heating</option>
+        </select>
+      </div>
+
+      <div class="ctrl-pill">
+        <label for="sel-metering">Valve</label>
+        <select id="sel-metering">
+          <option value="txv" selected>TXV</option>
+          <option value="fxo">Fixed Orifice</option>
+          <option value="eev">EEV</option>
+        </select>
+      </div>
+
+      <div class="seg-group" title="Refrigerant Color Visualization">
+        <button class="seg-btn active" data-color-mode="hvac">Phase View</button>
+        <button class="seg-btn" data-color-mode="thermal">Thermal IR</button>
+      </div>
+
+      <div class="seg-group" title="Diagram Labeling Mode">
+        <button class="seg-btn active" data-label-mode="tech">Tech</button>
+        <button class="seg-btn" data-label-mode="beginner">Plain</button>
+        <button class="seg-btn" data-label-mode="quiz">Quiz</button>
+      </div>
+
+      <div class="seg-group" title="Simulation Playback Speed">
+        <button class="seg-btn" id="btn-play-pause">Pause</button>
+        <button class="seg-btn" data-speed="0.25">0.25×</button>
+        <button class="seg-btn active" data-speed="1">1×</button>
+        <button class="seg-btn" data-speed="2">2×</button>
+      </div>
+
+      <button class="action-btn primary" id="btn-tour">Tour</button>
+      <button class="action-btn warn" id="btn-mystery-quick">Mystery Fault</button>
+      <button class="action-btn" id="btn-theme" title="Toggle Dark Lab / Light Classroom">Light Mode</button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE -->
+  <main class="workspace">
+    <!-- LEFT / CENTER HERO STAGE & MANIFOLD GAUGES -->
+    <section class="stage-col">
+      <div class="stage-card">
+        <div class="stage-header">
+          <div class="legend-row" id="legend-strip"></div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">
+            Click or hover any pipe / component to inspect live thermodynamic state
+          </div>
+        </div>
+
+        <div id="schematic-stage"></div>
+
+        <!-- GUIDED 5-STAGE TOUR BANNER -->
+        <div class="tour-banner" id="tour-banner">
+          <div class="tour-top">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="tour-badge" id="tour-badge">Stage 1 of 5</span>
+              <span class="tour-title" id="tour-title"></span>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="action-btn" id="btn-tour-prev">← Prev</button>
+              <button class="action-btn primary" id="btn-tour-next">Next →</button>
+              <button class="action-btn" id="btn-tour-close">Exit Tour</button>
+            </div>
+          </div>
+          <div id="tour-summary" style="font-size:12px;"></div>
+          <ul class="tour-list" id="tour-points"></ul>
+          <div class="tour-watch" id="tour-watch"></div>
+        </div>
+
+        <!-- INTERACTIVE PROBE INSPECTOR BAR -->
+        <div class="inspector-bar" id="inspector-bar">
+          <div>
+            <div class="insp-title" id="insp-title">Cycle Overview — Hover or Click Any Component</div>
+            <div class="insp-phase" id="insp-phase">Steady-State Vapor Compression Cycle</div>
+            <div class="insp-metrics" id="insp-metrics"></div>
+          </div>
+          <div class="insp-desc" id="insp-desc">
+            Move your cursor over the Compressor, Condenser, Filter-Drier, Sight Glass, Metering Device, Evaporator, or lines to inspect exact pressure, saturation temp, vapor quality, enthalpy, and density.
+          </div>
+        </div>
+      </div>
+
+      <!-- DIGITAL MANIFOLD GAUGE SET + SYSTEM PERFORMANCE -->
+      <div class="manifold-deck">
+        <!-- LOW SIDE COMPOUND GAUGE -->
+        <div class="gauge-card low-side">
+          <div class="dial-wrap">
+            <svg viewBox="0 0 100 100" width="94" height="94">
+              <circle cx="50" cy="50" r="46" fill="#0b1324" stroke="#3b82f6" stroke-width="4"/>
+              <path d="M 18 76 A 39 39 0 1 1 82 76" fill="none" stroke="#1e3a8a" stroke-width="6" stroke-linecap="round"/>
+              <path d="M 18 76 A 39 39 0 0 1 20 32" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round"/>
+              <text x="50" y="23" text-anchor="middle" fill="#93c5fd" font-size="8" font-weight="800">LOW / SUCT</text>
+              <text x="20" y="84" text-anchor="middle" fill="#6ee7b7" font-size="7" font-weight="700">VAC</text>
+              <text x="80" y="84" text-anchor="middle" fill="#94a3b8" font-size="7" font-weight="700">300</text>
+              <g id="needle-low" transform="rotate(-125 50 50)">
+                <line x1="50" y1="54" x2="50" y2="16" stroke="#60a5fa" stroke-width="2.6" stroke-linecap="round"/>
+              </g>
+              <circle cx="50" cy="50" r="5" fill="#93c5fd"/>
+            </svg>
+          </div>
+          <div class="lcd-panel">
+            <div class="lcd-top">
+              <span class="lcd-label">LOW SIDE (BLUE)</span>
+              <span class="lcd-psig low" id="lcd-low-psig">120.4 psig</span>
+            </div>
+            <div class="lcd-grid">
+              <div class="lcd-kv"><span>SAT EVAP (DEW)</span><strong id="lcd-low-sat">41.6°F</strong></div>
+              <div class="lcd-kv"><span>SUCTION CLAMP</span><strong id="lcd-suct-temp">51.6°F</strong></div>
+              <div class="lcd-kv"><span>SUPERHEAT</span><strong id="lcd-sh">10.0°F</strong></div>
+              <div class="lcd-kv"><span>TARGET SH</span><strong id="lcd-sh-target">~10°F</strong></div>
+            </div>
+            <span class="status-pill status-good" id="badge-sh">SUPERHEAT OK</span>
+          </div>
+        </div>
+
+        <!-- HIGH SIDE HEAD GAUGE -->
+        <div class="gauge-card high-side">
+          <div class="dial-wrap">
+            <svg viewBox="0 0 100 100" width="94" height="94">
+              <circle cx="50" cy="50" r="46" fill="#0b1324" stroke="#ef4444" stroke-width="4"/>
+              <path d="M 18 76 A 39 39 0 1 1 82 76" fill="none" stroke="#7f1d1d" stroke-width="6" stroke-linecap="round"/>
+              <text x="50" y="23" text-anchor="middle" fill="#fca5a5" font-size="8" font-weight="800">HIGH / HEAD</text>
+              <text x="20" y="84" text-anchor="middle" fill="#94a3b8" font-size="7" font-weight="700">0</text>
+              <text x="80" y="84" text-anchor="middle" fill="#fca5a5" font-size="7" font-weight="700">650</text>
+              <g id="needle-high" transform="rotate(-35 50 50)">
+                <line x1="50" y1="54" x2="50" y2="16" stroke="#f87171" stroke-width="2.6" stroke-linecap="round"/>
+              </g>
+              <circle cx="50" cy="50" r="5" fill="#fca5a5"/>
+            </svg>
+          </div>
+          <div class="lcd-panel">
+            <div class="lcd-top">
+              <span class="lcd-label">HIGH SIDE (RED)</span>
+              <span class="lcd-psig high" id="lcd-high-psig">385.7 psig</span>
+            </div>
+            <div class="lcd-grid">
+              <div class="lcd-kv"><span>SAT COND (BUB)</span><strong id="lcd-high-sat">113.9°F</strong></div>
+              <div class="lcd-kv"><span>LIQUID CLAMP</span><strong id="lcd-liq-temp">103.7°F</strong></div>
+              <div class="lcd-kv"><span>SUBCOOLING</span><strong id="lcd-sc">10.2°F</strong></div>
+              <div class="lcd-kv"><span>TARGET SC</span><strong id="lcd-sc-target">~10°F</strong></div>
+            </div>
+            <span class="status-pill status-good" id="badge-sc">SUBCOOLING OK</span>
+          </div>
+        </div>
+
+        <!-- SYSTEM PERFORMANCE TELEMETRY -->
+        <div class="perf-card">
+          <div class="metric-box">
+            <div class="m-lbl">Capacity</div>
+            <div class="m-val" id="m-tons">3.06 Tons</div>
+            <div class="m-sub" id="m-btu">36,700 BTU/hr</div>
+          </div>
+          <div class="metric-box">
+            <div class="m-lbl">Supply Air</div>
+            <div class="m-val" id="m-supply">52.1°F</div>
+            <div class="m-sub" id="m-dt">ΔT 22.9°F</div>
+          </div>
+          <div class="metric-box">
+            <div class="m-lbl">Discharge Temp</div>
+            <div class="m-val" id="m-disch">191°F</div>
+            <div class="m-sub" id="m-cr">CR 2.98:1</div>
+          </div>
+          <div class="metric-box">
+            <div class="m-lbl">Comp Amps / kW</div>
+            <div class="m-val" id="m-amps">13.4 A</div>
+            <div class="m-sub" id="m-kw">3.21 kW total</div>
+          </div>
+          <div class="metric-box">
+            <div class="m-lbl">Efficiency</div>
+            <div class="m-val" id="m-eer">11.4 EER</div>
+            <div class="m-sub" id="m-cop">COP 3.35</div>
+          </div>
+          <div class="metric-box">
+            <div class="m-lbl">Moisture / Drain</div>
+            <div class="m-val" id="m-condensate">0.92 gph</div>
+            <div class="m-sub" id="m-mass">8.24 lb/min</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT CONTROL & DIAGNOSTIC PANEL -->
+    <aside class="sidebar">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="controls">Controls &amp; Faults</button>
+        <button class="tab-btn" data-tab="ph">P-H Mollier Chart</button>
+        <button class="tab-btn" data-tab="lab">Lab &amp; Formulas</button>
+      </div>
+
+      <!-- TAB 1: CONTROLS & FAULTS -->
+      <div class="tab-body active" id="tab-controls">
+        <div class="section-hdr">
+          <span>System Fault Scenarios</span>
+          <button class="action-btn" id="btn-reset" style="padding:2px 7px; font-size:10px;">Reset Nominal</button>
+        </div>
+
+        <div id="fault-panel-normal">
+          <div class="fault-grid" id="fault-grid"></div>
+          <div class="fault-info-box" id="fault-info-box"></div>
+        </div>
+
+        <div id="fault-panel-masked" class="mystery-card hidden">
+          <div style="font-weight:800; color:#fbbf24; font-size:12.5px;">Mystery Fault Mode Active</div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">
+            Fault presets are hidden! Inspect gauges, SH/SC, sight glass, and coil frosting, then open <strong>Lab &amp; Formulas</strong> to submit your diagnosis.
+          </div>
+        </div>
+
+        <div class="section-hdr">
+          <span>Operating Environment &amp; Parameters</span>
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-row">
+            <div class="slider-head"><span>Indoor Return Air Dry-Bulb</span><span class="slider-val" id="val-indoor-db">75°F</span></div>
+            <input type="range" id="rng-indoor-db" min="55" max="95" step="1" value="75" />
+          </div>
+          <div class="slider-row">
+            <div class="slider-head"><span>Indoor Relative Humidity</span><span class="slider-val" id="val-indoor-rh">50% RH</span></div>
+            <input type="range" id="rng-indoor-rh" min="20" max="80" step="1" value="50" />
+          </div>
+          <div class="slider-row">
+            <div class="slider-head"><span>Indoor Blower Airflow</span><span class="slider-val" id="val-indoor-cfm">400 CFM/ton</span></div>
+            <input type="range" id="rng-indoor-cfm" min="160" max="500" step="10" value="400" />
+          </div>
+          <div class="slider-row">
+            <div class="slider-head"><span>Outdoor Ambient Dry-Bulb</span><span class="slider-val" id="val-outdoor-db">95°F</span></div>
+            <input type="range" id="rng-outdoor-db" min="15" max="120" step="1" value="95" />
+          </div>
+          <div class="slider-row">
+            <div class="slider-head"><span>Condenser Airflow / Cleanliness</span><span class="slider-val" id="val-cond-air">100%</span></div>
+            <input type="range" id="rng-cond-air" min="25" max="105" step="1" value="100" />
+          </div>
+          <div class="slider-row">
+            <div class="slider-head"><span>Refrigerant Charge Level</span><span class="slider-val" id="val-charge">100%</span></div>
+            <input type="range" id="rng-charge" min="50" max="135" step="1" value="100" />
+          </div>
+          <div class="slider-row">
+            <div class="slider-head"><span>Compressor Speed / Stage</span><span class="slider-val" id="val-comp-speed">100% (Full)</span></div>
+            <input type="range" id="rng-comp-speed" min="45" max="120" step="5" value="100" />
+          </div>
+        </div>
+
+        <div class="section-hdr"><span>Refrigerant Properties</span></div>
+        <div class="ref-card" id="ref-info-card"></div>
+      </div>
+
+      <!-- TAB 2: P-H MOLLIER CHART -->
+      <div class="tab-body" id="tab-ph">
+        <div class="section-hdr">
+          <span>Live Pressure-Enthalpy (P-H) Diagram</span>
+          <span style="font-size:10px;">Hover Points 1–4</span>
+        </div>
+        <div class="ph-canvas-box">
+          <canvas id="ph-canvas" class="ph-canvas"></canvas>
+        </div>
+
+        <div class="section-hdr"><span>Cycle State Table (ASHRAE Datum)</span></div>
+        <table class="state-table">
+          <thead>
+            <tr>
+              <th>State</th>
+              <th>Press</th>
+              <th>Temp</th>
+              <th>Enthalpy</th>
+            </tr>
+          </thead>
+          <tbody id="ph-state-tbody"></tbody>
+        </table>
+
+        <div class="fault-info-box" style="margin-top:10px;" id="ph-energy-summary"></div>
+      </div>
+
+      <!-- TAB 3: LAB & FORMULAS -->
+      <div class="tab-body" id="tab-lab">
+        <div class="section-hdr">
+          <span>Diagnostic Challenge Mode</span>
+          <span id="quiz-score" style="color:var(--good); font-family:monospace;">Score: 0 / 0</span>
+        </div>
+        <div class="mystery-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <span style="font-size:12px; font-weight:800;" id="mystery-status">Ready for Diagnostic Test</span>
+            <button class="action-btn warn" id="btn-start-mystery">New Mystery Fault</button>
+          </div>
+          <div id="mystery-quiz-ui" class="hidden">
+            <div class="mystery-options" id="mystery-options"></div>
+            <div style="display:flex; gap:6px;">
+              <button class="action-btn primary" id="btn-submit-mystery" style="flex:1; justify-content:center;">Submit Diagnosis</button>
+              <button class="action-btn" id="btn-exit-mystery">Exit</button>
+            </div>
+          </div>
+          <div id="mystery-feedback" style="margin-top:8px; font-size:11.5px;"></div>
+        </div>
+
+        <div class="section-hdr"><span>Live-Substituted HVAC Equations</span></div>
+        <div id="formulas-container"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script defer src="./js/refrigerants.js"></script>
+  <script defer src="./js/physics.js"></script>
+  <script defer src="./js/ph_diagram.js"></script>
+  <script defer src="./js/renderer.js"></script>
+  <script defer src="./js/tour_and_lab.js"></script>
+  <script defer src="./js/app.js"></script>
+</body>
+</html>
