@@ -580,7 +580,8 @@
     const windingCoolingFactor = RefDB.clamp(nomMassFlowLbMin / Math.max(1.5, activeFlow), 0.75, 2.0);
     const motorWindingTemp =
       tSuct + 48 * windingCoolingFactor + (r_p - 2.5) * 12 + valveLeakFactor * 42;
-    const isOverheating = tDisch > 215 || motorWindingTemp > 205;
+    const dischOverheatLimitF = refId === 'R32' ? 225 : 215;
+    const isOverheating = tDisch > dischOverheatLimitF || motorWindingTemp > 205;
     const isFloodback = sh <= 1.5;
 
     const fanWatts = 340 * (indoorCFMPerTon / 400) + 210 * (condAirflowPct / 100);

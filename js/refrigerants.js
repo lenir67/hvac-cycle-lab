@@ -110,7 +110,7 @@
       mw: 52.02,
       cpLiq: 0.435,
       cpVap: 0.285,
-      gamma: 1.24,
+      gamma: 1.206,
       nominalTargetSH: 10.0,
       nominalTargetSC: 10.0,
       notes: 'Pure single-component A2L refrigerant (GWP 675) with zero glide (can be charged liquid or vapor). High latent heat & high γ produce ~15–25°F higher discharge temps than R-410A.',
