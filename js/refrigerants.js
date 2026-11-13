@@ -94,6 +94,48 @@
       ]
     },
 
+    R32: {
+      id: 'R32',
+      name: 'R-32 (Difluoromethane)',
+      shortName: 'R-32',
+      composition: 'Single-Component HFC (CH2F2 — Pure Fluid)',
+      safetyClass: 'A2L (Mildly Flammable — Leak Detection Req.)',
+      oilType: 'POE (Polyolester) / PVE (Polyvinylether)',
+      glideF: 0.0,
+      cylinderColorName: 'Light Green-Gray w/ Red Band (A2L)',
+      cylinderHex: '#14b8a6',
+      Tc: 172.6,
+      Pc_psia: 838.6,
+      hc: 136.0,
+      mw: 52.02,
+      cpLiq: 0.435,
+      cpVap: 0.285,
+      gamma: 1.24,
+      nominalTargetSH: 10.0,
+      nominalTargetSC: 10.0,
+      notes: 'Pure single-component A2L refrigerant (GWP 675) with zero glide (can be charged liquid or vapor). High latent heat & high γ produce ~15–25°F higher discharge temps than R-410A.',
+      table: [
+        [-40, 12.1, 12.1, 0.00, 163.50, 73.1, 0.081],
+        [-20, 27.9, 27.9, 7.45, 165.60, 71.1, 0.126],
+        [0, 50.4, 50.4, 15.15, 167.50, 69.0, 0.189],
+        [20, 81.1, 81.1, 23.15, 169.10, 66.8, 0.276],
+        [30, 100.2, 100.2, 27.28, 169.80, 65.6, 0.330],
+        [40, 122.1, 122.1, 31.52, 170.40, 64.4, 0.393],
+        [50, 146.9, 146.9, 35.88, 170.85, 63.1, 0.466],
+        [60, 175.1, 175.1, 40.38, 171.15, 61.7, 0.551],
+        [70, 206.9, 206.9, 45.02, 171.30, 60.3, 0.650],
+        [80, 242.6, 242.6, 49.82, 171.25, 58.8, 0.765],
+        [90, 282.5, 282.5, 54.80, 171.00, 57.1, 0.900],
+        [100, 327.0, 327.0, 59.98, 170.50, 55.4, 1.058],
+        [110, 376.5, 376.5, 65.40, 169.70, 53.5, 1.246],
+        [120, 431.4, 431.4, 71.12, 168.50, 51.4, 1.472],
+        [130, 492.2, 492.2, 77.22, 166.80, 49.0, 1.750],
+        [140, 559.4, 559.4, 83.85, 164.30, 46.3, 2.105],
+        [155, 673.8, 673.8, 95.60, 158.00, 41.2, 2.860],
+        [172.6, 823.9, 823.9, 136.00, 136.00, 26.5, 26.50]
+      ]
+    },
+
     R22: {
       id: 'R22',
       name: 'R-22 (Chlorodifluoromethane)',

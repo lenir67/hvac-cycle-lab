@@ -53,6 +53,12 @@ for (const refId of Object.keys(RefDB.REFRIGERANTS)) {
   }
 }
 
+assert(RefDB.REFRIGERANTS.R32 && RefDB.REFRIGERANTS.R32.glideF === 0.0, 'R-32 present with zero glide');
+const r410Nom = Physics.solveCycle({ refrigerant: 'R410A', mode: 'cooling', metering: 'txv', fault: 'none' });
+const r32Cycle = Physics.solveCycle({ refrigerant: 'R32', mode: 'cooling', metering: 'txv', fault: 'none' });
+assert(r32Cycle.phPoints.nre > r410Nom.phPoints.nre + 25, `R-32 higher NRE than R-410A (${r32Cycle.phPoints.nre} vs ${r410Nom.phPoints.nre})`);
+assert(r32Cycle.gauges.dischargeTempF > r410Nom.gauges.dischargeTempF + 8, `R-32 higher discharge temp than R-410A (${r32Cycle.gauges.dischargeTempF} vs ${r410Nom.gauges.dischargeTempF})`);
+
 console.log('3. Testing Diagnostic Fault Signatures (R-410A TXV)...');
 const base = Physics.solveCycle({ refrigerant: 'R410A', mode: 'cooling', metering: 'txv', fault: 'none' });
 const fUnder = Physics.solveCycle({ refrigerant: 'R410A', mode: 'cooling', metering: 'txv', fault: 'undercharge' });
