@@ -725,8 +725,8 @@
               <rect data-node="suction_line" x="340" y="130" width="215" height="55" rx="12" class="hit-zone"/>
               <rect data-node="filter_drier" x="468" y="566" width="88" height="60" rx="10" class="hit-zone"/>
               <rect data-node="liquid_line" x="576" y="566" width="130" height="60" rx="10" class="hit-zone"/>
-              <rect data-node="metering_device" x="346" y="544" width="94" height="84" rx="10" class="hit-zone"/>
-              <rect data-node="metering_device" x="736" y="544" width="94" height="84" rx="10" class="hit-zone"/>
+              <rect id="hit-valve-indoor" data-node="metering_device" x="346" y="544" width="94" height="84" rx="10" class="hit-zone"/>
+              <rect id="hit-valve-outdoor" data-node="check_bypass" x="736" y="544" width="94" height="84" rx="10" class="hit-zone"/>
             </g>
           </svg>
         </div>
@@ -909,7 +909,18 @@
         rvTag.textContent = isCooling ? '4-WAY VALVE (COOLING)' : '4-WAY VALVE (HEATING)';
       }
 
-      // TXV capillary routing visibility based on mode & metering
+      // Dynamically map indoor/outdoor valve hit zones to active metering_device vs check_bypass
+      const hitIndoor = this.overlayEl.querySelector('#hit-valve-indoor');
+      const hitOutdoor = this.overlayEl.querySelector('#hit-valve-outdoor');
+      if (hitIndoor) hitIndoor.setAttribute('data-node', isCooling ? 'metering_device' : 'check_bypass');
+      if (hitOutdoor) hitOutdoor.setAttribute('data-node', isCooling ? 'check_bypass' : 'metering_device');
+
+      // TXV diaphragm dome & capillary routing visibility based on mode & metering
+      const indoorDome = this.svgEl.querySelector('#indoor-txv-dome');
+      const outdoorDome = this.svgEl.querySelector('#outdoor-txv-dome');
+      if (indoorDome) indoorDome.setAttribute('opacity', s.metering === 'txv' && isCooling ? '1' : '0.18');
+      if (outdoorDome) outdoorDome.setAttribute('opacity', s.metering === 'txv' && !isCooling ? '1' : '0.18');
+
       const capLine = this.svgEl.querySelector('#txv-capillary-line');
       const bulb = this.svgEl.querySelector('#txv-sensing-bulb');
       const showBulb = s.metering === 'txv' && isCooling;
@@ -1591,16 +1602,20 @@
       const txt = s.metering === 'fxo' ? 'ORIFICE' : s.metering === 'eev' ? `S:${Math.round(openPct * 4.8)}` : `${Math.round(openPct)}%`;
       ctx.fillText(txt, activeX, 611);
 
-      // Bypassed valve check symbol
+      // Bypassed valve check symbol + directional flow arrow
+      const dir = isCooling ? -1 : 1; // Cooling flows left (-1), Heating flows right (+1)
       ctx.strokeStyle = '#10b981';
+      ctx.fillStyle = '#10b981';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(bypassX - 16, 595);
-      ctx.lineTo(bypassX + 16, 595);
+      ctx.moveTo(bypassX - 16, 591);
+      ctx.lineTo(bypassX + 16, 591);
+      ctx.moveTo(bypassX + dir * 10, 586);
+      ctx.lineTo(bypassX + dir * 16, 591);
+      ctx.lineTo(bypassX + dir * 10, 596);
       ctx.stroke();
-      ctx.fillStyle = '#10b981';
-      ctx.font = '700 8px system-ui, sans-serif';
-      ctx.fillText('OPEN', bypassX, 609);
+      ctx.font = '700 7.5px system-ui, sans-serif';
+      ctx.fillText('BYPASS', bypassX, 609);
       ctx.restore();
     }
 

@@ -45,6 +45,12 @@ for (const refId of Object.keys(RefDB.REFRIGERANTS)) {
       assert(s.performance.tons > 0.5 && s.performance.tons < 6.0, `Reasonable tons for ${refId} ${mode}: ${s.performance.tons}`);
       assert(s.performance.compressionRatio > 1.2, `Valid CR for ${refId}`);
       assert(
+        s.nodes.check_bypass &&
+        s.nodes.check_bypass.quality === 0.0 &&
+        s.nodes.check_bypass.P_psig === s.gauges.highPsig,
+        `${refId} ${mode} ${metering}: check_bypass node must carry subcooled liquid at high-side pressure`
+      );
+      assert(
         !s.performance.isOverheating,
         `${refId} ${mode} ${metering}: Nominal operation must not trigger thermal overheat (tDisch=${s.gauges.dischargeTempF.toFixed(1)}°F, winding=${s.performance.motorWindingTemp.toFixed(1)}°F)`
       );

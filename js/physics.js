@@ -736,6 +736,24 @@
         rho: 1 / (flashGasQuality / stEvap.rho_g + (1 - flashGasQuality) / stEvap.rho_f),
         description: `Drops pressure instantaneously from ${P_postDrier_psig.toFixed(0)} to ${P_low_psig.toFixed(0)} psig at constant enthalpy (${h4.toFixed(1)} BTU/lb). ${(flashGasQuality * 100).toFixed(1)}% flashes to vapor, self-cooling the remaining ${liquidPctPostMeter.toFixed(1)}% liquid down to ${stEvap.T.toFixed(1)}°F.`
       },
+      check_bypass: {
+        id: 'check_bypass',
+        title: mode === 'cooling'
+          ? 'Outdoor Check-Valve Bypass (Open in Cooling)'
+          : 'Indoor Check-Valve Bypass (Open in Heating)',
+        short: 'Check Bypass',
+        P_psig: P_high_gauge_psig,
+        P_psia: P_high_psia,
+        T: tLiq,
+        T_sat: stCondGaugeApparent.T,
+        phase: sc > 2.5 ? 'Subcooled Liquid (Free Bypass Flow — ΔP ≈ 0 psi)' : 'Saturated Liquid (Free Bypass Flow)',
+        quality: 0.0,
+        h: h3,
+        rho: stCond.rho_f,
+        description: mode === 'cooling'
+          ? `In Cooling mode, subcooled liquid (${tLiq.toFixed(1)}°F, ${P_high_gauge_psig.toFixed(0)} psig) leaving the outdoor condenser pushes this internal check valve open to bypass the outdoor heat-pump metering device without dropping pressure.`
+          : `In Heating mode, subcooled liquid (${tLiq.toFixed(1)}°F, ${P_high_gauge_psig.toFixed(0)} psig) leaving the indoor condenser pushes this internal check valve open to bypass the indoor cooling metering device without dropping pressure.`
+      },
       evaporator: {
         id: 'evaporator',
         title: mode === 'cooling' ? '4b. Indoor Evaporator Coil (Heat Absorption)' : '4b. Outdoor Evaporator Coil (Heating Mode)',
