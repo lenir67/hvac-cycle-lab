@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const child_process = require('child_process');
 
 const ROOT = __dirname;
 const OUTPUT_FILE = path.join(ROOT, 'HVAC_Refrigerant_Cycle_Lab.html');
@@ -84,5 +85,28 @@ function verifyBundle(bundled) {
   );
 }
 
+function syncToIntegratedStudyHelper() {
+  if (process.env.SKIP_HUB_SYNC === '1') return;
+  const hubSync = path.resolve(ROOT, '..', 'Integrated Study Helper', 'sync_and_publish.py');
+  if (!fs.existsSync(hubSync)) return;
+
+  const venvPy = path.resolve(ROOT, '..', 'cte-program-tracker-standalone', '.venv', 'Scripts', 'python.exe');
+  const pyExe = fs.existsSync(venvPy) ? venvPy : 'python';
+
+  try {
+    const res = child_process.spawnSync(pyExe, [hubSync, '--auto-hook', '--source', 'refrigerant-cycle'], {
+      stdio: 'inherit'
+    });
+    if (res.error) {
+      console.warn(`[WARN] Integrated Study Helper sync skipped: ${res.error.message}`);
+    } else if (res.status !== 0) {
+      console.warn(`[WARN] Integrated Study Helper sync exited with status ${res.status}.`);
+    }
+  } catch (err) {
+    console.warn(`[WARN] Integrated Study Helper sync failed: ${err.message}`);
+  }
+}
+
 const output = buildBundle();
 verifyBundle(output);
+syncToIntegratedStudyHelper();

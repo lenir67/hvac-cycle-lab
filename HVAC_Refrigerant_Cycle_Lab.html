@@ -5317,6 +5317,50 @@ input[type="range"] {
     updateInspector();
   }
 
+  function applyCycleTheme(theme) {
+    if (theme !== 'light' && theme !== 'dark') return;
+    state.theme = theme;
+    document.documentElement.classList.toggle('light', state.theme === 'light');
+    const btn = document.getElementById('btn-theme');
+    if (btn) {
+      btn.textContent = state.theme === 'light' ? 'Dark Lab' : 'Light Mode';
+    }
+    if (renderer) renderer.setTheme(state.theme);
+    if (phDiagram) phDiagram.setTheme(state.theme);
+  }
+
+  function applyCyclePresetParams({ ref, mode, valve, theme }) {
+    if (typeof ref === 'string' && Object.prototype.hasOwnProperty.call(RefDB.REFRIGERANTS, ref)) {
+      state.params.refrigerant = ref;
+      const selRef = document.getElementById('sel-refrigerant');
+      if (selRef) selRef.value = ref;
+    }
+    if (mode === 'cooling' || mode === 'heating') {
+      state.params.mode = mode;
+      const selMode = document.getElementById('sel-mode');
+      if (selMode) selMode.value = mode;
+      if (mode === 'heating') {
+        state.params.outdoorDB = 42;
+        state.params.indoorDB = 70;
+      } else {
+        state.params.outdoorDB = 95;
+        state.params.indoorDB = 75;
+      }
+      const rngOutdoor = document.getElementById('rng-outdoor-db');
+      const rngIndoor = document.getElementById('rng-indoor-db');
+      if (rngOutdoor) rngOutdoor.value = state.params.outdoorDB;
+      if (rngIndoor) rngIndoor.value = state.params.indoorDB;
+    }
+    if (valve === 'txv' || valve === 'fxo' || valve === 'eev') {
+      state.params.metering = valve;
+      const selMeter = document.getElementById('sel-metering');
+      if (selMeter) selMeter.value = valve;
+    }
+    if (theme === 'light' || theme === 'dark') {
+      applyCycleTheme(theme);
+    }
+  }
+
   function updateUI() {
     updateLegend();
     updateManifoldAndPerf();
@@ -5473,12 +5517,8 @@ input[type="range"] {
     });
 
     // Theme toggle
-    document.getElementById('btn-theme').addEventListener('click', (e) => {
-      state.theme = state.theme === 'dark' ? 'light' : 'dark';
-      document.documentElement.classList.toggle('light', state.theme === 'light');
-      e.target.textContent = state.theme === 'light' ? 'Dark Lab' : 'Light Mode';
-      renderer.setTheme(state.theme);
-      phDiagram.setTheme(state.theme);
+    document.getElementById('btn-theme').addEventListener('click', () => {
+      applyCycleTheme(state.theme === 'dark' ? 'light' : 'dark');
     });
 
     // Guided Tour
@@ -5598,7 +5638,39 @@ input[type="range"] {
     });
 
     initControls();
+    let initialTour = null;
+    try {
+      const qs = new URLSearchParams(window.location.search);
+      applyCyclePresetParams({
+        ref: qs.get('ref'),
+        mode: qs.get('mode'),
+        valve: qs.get('valve'),
+        theme: qs.get('theme')
+      });
+      initialTour = qs.get('tour');
+    } catch (_) {
+      // Ignore malformed URL query parameters
+    }
     recompute();
+    if (initialTour === '1' || initialTour === 'true') {
+      state.tourIndex = 0;
+      updateTourBanner();
+    }
+
+    window.addEventListener('message', (event) => {
+      if (!event || !event.data || typeof event.data !== 'object') return;
+      if (event.data.type !== 'ish:setCyclePreset') return;
+      const { ref, mode, valve, theme, tour } = event.data;
+      applyCyclePresetParams({ ref, mode, valve, theme });
+      recompute();
+      if (tour === true || tour === '1' || tour === 'true') {
+        state.tourIndex = 0;
+        updateTourBanner();
+      } else if (tour === false || tour === '0' || tour === 'false') {
+        state.tourIndex = null;
+        updateTourBanner();
+      }
+    });
 
     const lowNeedleEl = document.getElementById('needle-low');
     const highNeedleEl = document.getElementById('needle-high');
