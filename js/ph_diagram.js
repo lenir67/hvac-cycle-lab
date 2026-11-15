@@ -7,6 +7,12 @@
   'use strict';
 
   const RefDB = global.HVACRef;
+  const NODE_MAP = {
+    p1: 'suction_line',
+    p2: 'discharge_line',
+    p3: 'liquid_line',
+    p4: 'metering_device'
+  };
 
   class PHDiagram {
     constructor(canvas, options = {}) {
@@ -38,41 +44,64 @@
       }
     }
 
+    /** Return the closest state point key ('p1'..'p4') within maxDist CSS px. */
+    _findClosestPoint(clientX, clientY, maxDist) {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      let closest = null;
+      let minDist = maxDist;
+      for (const [key, pt] of Object.entries(this.screenPoints)) {
+        const d = Math.hypot(x - pt.x, y - pt.y);
+        if (d < minDist) {
+          minDist = d;
+          closest = key;
+        }
+      }
+      return closest;
+    }
+
+    /** Update hover state, cursor, and hover callback when the active point changes. */
+    _updateHoverPoint(closest) {
+      if (closest !== this.hoverIdx) {
+        this.hoverIdx = closest;
+        this.canvas.style.cursor = closest ? 'pointer' : 'default';
+        if (this.onHoverPoint) this.onHoverPoint(closest);
+      }
+    }
+
+    /** Notify node selection callback for a P-H state point key ('p1'..'p4'). */
+    _selectPoint(key) {
+      if (key && this.onSelectNode && NODE_MAP[key]) {
+        this.onSelectNode(NODE_MAP[key]);
+      }
+    }
+
     _bindEvents() {
+      const handleTouch = (e, select) => {
+        const touch = e.touches && e.touches[0];
+        if (!touch) return;
+        const closest = this._findClosestPoint(touch.clientX, touch.clientY, 30);
+        this._updateHoverPoint(closest);
+        if (select) {
+          this._selectPoint(closest);
+        }
+      };
+
       this.canvas.addEventListener('mousemove', (e) => {
-        const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        let closest = null;
-        let minDist = 24;
-        for (const [key, pt] of Object.entries(this.screenPoints)) {
-          const d = Math.hypot(x - pt.x, y - pt.y);
-          if (d < minDist) {
-            minDist = d;
-            closest = key;
-          }
-        }
-        if (closest !== this.hoverIdx) {
-          this.hoverIdx = closest;
-          this.canvas.style.cursor = closest ? 'pointer' : 'default';
-          if (this.onHoverPoint) this.onHoverPoint(closest);
-        }
+        this._updateHoverPoint(this._findClosestPoint(e.clientX, e.clientY, 24));
       });
 
       this.canvas.addEventListener('mouseleave', () => {
-        if (this.hoverIdx !== null) {
-          this.hoverIdx = null;
-          this.canvas.style.cursor = 'default';
-          if (this.onHoverPoint) this.onHoverPoint(null);
-        }
+        this._updateHoverPoint(null);
       });
 
       this.canvas.addEventListener('click', () => {
-        if (this.hoverIdx && this.onSelectNode) {
-          const map = { p1: 'suction_line', p2: 'discharge_line', p3: 'liquid_line', p4: 'metering_device' };
-          this.onSelectNode(map[this.hoverIdx]);
-        }
+        this._selectPoint(this.hoverIdx);
       });
+
+      this.canvas.addEventListener('touchstart', (e) => handleTouch(e, true), { passive: true });
+      this.canvas.addEventListener('touchmove', (e) => handleTouch(e, false), { passive: true });
     }
 
     render(dt = 0.016, animSpeed = 1, paused = false) {

@@ -439,6 +439,9 @@ html.light .stage-canvas-wrap {
 }
 
 @media (max-width: 960px) {
+  .topbar {
+    position: static;
+  }
   .manifold-deck {
     grid-template-columns: 1fr;
   }
@@ -617,6 +620,13 @@ html.light .stage-canvas-wrap {
 
 .tab-body.active {
   display: block;
+}
+
+@media (max-width: 1240px) {
+  .tab-body {
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 
 .section-hdr {
@@ -842,4 +852,46 @@ input[type="range"] {
 
 .hidden {
   display: none !important;
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .topbar-controls {
+    width: 100%;
+  }
+  .workspace {
+    padding: 8px 10px;
+    gap: 10px;
+  }
+  .stage-canvas-wrap {
+    min-height: 230px;
+  }
+  .perf-card {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .fault-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .mystery-options {
+    grid-template-columns: 1fr;
+  }
+  .gauge-card {
+    padding: 10px;
+    gap: 10px;
+  }
+  .dial-wrap {
+    width: 78px;
+    height: 78px;
+    flex-shrink: 0;
+  }
+  .lcd-top {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .lcd-psig {
+    font-size: 17px;
+  }
 }
