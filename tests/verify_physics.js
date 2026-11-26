@@ -192,7 +192,25 @@ assert(fNonCond.gauges.highPsig > base.gauges.highPsig + 50 && fNonCond.gauges.s
 assert(fNonCond.gauges.highPsig - fNonCond.gauges.highRefPsig > 50, 'Non-Condensables separates P_gauge from P_ref');
 
 console.log('5. Testing Lab Tour, Formula Substitution & diagnoseSystemFaults Hints...');
-assert(Lab.TOUR_STEPS.length === 6 && Lab.TOUR_STEPS.some((s) => s.id === 'accumulator'), '6 guided tour steps including accumulator');
+assert(
+  Lab.TOUR_STEPS.length === 7 &&
+  Lab.TOUR_STEPS.some((s) => s.id === 'reversing_valve') &&
+  Lab.TOUR_STEPS.some((s) => s.id === 'accumulator'),
+  '7 guided tour steps including reversing_valve and accumulator'
+);
+assert(
+  base.nodes.reversing_valve &&
+  base.nodes.reversing_valve.phase.includes('D → O') &&
+  base.nodes.reversing_valve.deltaP > 150,
+  'Cooling reversing_valve node describes D -> O routing'
+);
+const heatBase = Physics.solveCycle({ refrigerant: 'R410A', mode: 'heating', metering: 'txv', fault: 'none', outdoorDB: 42, indoorDB: 70 });
+assert(
+  heatBase.nodes.reversing_valve &&
+  heatBase.nodes.reversing_valve.phase.includes('D → I') &&
+  heatBase.nodes.reversing_valve.deltaP > 150,
+  'Heating reversing_valve node describes D -> I routing'
+);
 const formulas = Lab.buildFormulaCards(base);
 assert(formulas.length === 6 && formulas.every((c) => c.calc && !c.calc.includes('NaN')), 'Valid live formula cards');
 const co2Formulas = Lab.buildFormulaCards(r744Cool);

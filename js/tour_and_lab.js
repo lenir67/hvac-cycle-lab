@@ -13,7 +13,7 @@
     {
       id: 'compressor',
       nodeId: 'compressor',
-      badge: 'Stage 1 of 6',
+      badge: 'Stage 1 of 7',
       title: 'The Hermetic Scroll Compressor (Vapor Pump)',
       summary:
         'Draws in cool, low-pressure superheated vapor (Point 1) and mechanically squeezes it into hot, high-pressure superheated vapor (Point 2).',
@@ -25,9 +25,23 @@
       watchFor: 'Watch the orbiting scroll trap crescent pockets inward and check the Compression Ratio & Discharge Temp!'
     },
     {
+      id: 'reversing_valve',
+      nodeId: 'reversing_valve',
+      badge: 'Stage 2 of 7',
+      title: '4-Way Reversing Valve (Pilot-Operated Slide)',
+      summary:
+        'Uses system pressure differential (High P vs. Low P)—controlled by a tiny 24V pilot solenoid—to slide a C-shaped D-cup and swap indoor/outdoor coil roles.',
+      keyPoints: [
+        'Pilot Solenoid & Capillaries: Energizing 24V shifts the pilot shuttle to vent one end piston chamber to Suction (Low P) while High P pushes the piston assembly across.',
+        'Cooling (Pilot OFF): Slides LEFT so D → O (hot gas outdoors) and I → S (cool vapor back to accumulator/compressor).',
+        'Heating (Pilot ON): Slides RIGHT so D → I (hot gas indoors) and O → S (outdoor evaporator vapor to compressor).'
+      ],
+      watchFor: 'Toggle Mode between A/C Cooling and Heat Pump Heating to watch the pilot capillaries flip color, pistons slide, and D-cup re-route!'
+    },
+    {
       id: 'condenser',
       nodeId: 'condenser',
-      badge: 'Stage 2 of 6',
+      badge: 'Stage 3 of 7',
       title: 'The Condenser Coil (3-Zone Heat Rejection)',
       summary:
         'Because high pressure raises the refrigerant’s boiling/condensing temperature above outdoor air, heat flows naturally OUT of the coil.',
@@ -41,7 +55,7 @@
     {
       id: 'metering',
       nodeId: 'metering_device',
-      badge: 'Stage 3 of 6',
+      badge: 'Stage 4 of 7',
       title: 'Filter-Drier, Sight Glass & Metering Device',
       summary:
         'Creates a sharp pressure drop from High-Side to Low-Side at constant enthalpy, spraying cold liquid + flash gas into the evaporator.',
@@ -55,7 +69,7 @@
     {
       id: 'evaporator',
       nodeId: 'evaporator',
-      badge: 'Stage 4 of 6',
+      badge: 'Stage 5 of 7',
       title: 'The Evaporator Coil (Latent Boiling & Superheat)',
       summary:
         'Low pressure drops the refrigerant’s boiling point (~40°F) below indoor air (~75°F), pulling sensible and latent heat out of the airstream.',
@@ -69,7 +83,7 @@
     {
       id: 'accumulator',
       nodeId: 'accumulator',
-      badge: 'Stage 5 of 6',
+      badge: 'Stage 6 of 7',
       title: 'Suction-Line Accumulator (Liquid Trap & Oil Return)',
       summary:
         'Sits ahead of the compressor suction port to catch liquid carryover (especially in Heat Pump Heating mode) so only dry vapor reaches the scroll.',
@@ -83,7 +97,7 @@
     {
       id: 'balance',
       nodeId: 'suction_line',
-      badge: 'Stage 6 of 6',
+      badge: 'Stage 7 of 7',
       title: 'First Law Energy Balance & Diagnostic Mastery',
       summary:
         'Energy cannot be created or destroyed: Every BTU absorbed indoors PLUS compressor work MUST be rejected outdoors.',

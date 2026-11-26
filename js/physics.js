@@ -1137,6 +1137,25 @@
         rho: stDisch.rhoLbFt3,
         description: `Hottest point in the cycle (${tDisch.toFixed(1)}°F). Carries both evaporator heat (${Math.round(qEvap).toLocaleString()} BTU/hr) and heat of compression (${Math.round(wCompFluid).toLocaleString()} BTU/hr) toward the ${isR744Transcritical ? 'gas cooler' : 'condenser'}.`
       },
+      reversing_valve: {
+        id: 'reversing_valve',
+        title: '2c. 4-Way Reversing Valve (Pilot-Operated Slide)',
+        short: '4-Way Valve',
+        P_psig: P_high_gauge_psig,
+        P_psia: P_high_psia,
+        T: tDisch,
+        T_sat: condLabelT,
+        phase: mode === 'cooling'
+          ? 'Cooling (Pilot OFF) • D → O (High P) | I → S (Low P)'
+          : 'Heating (Pilot ON) • D → I (High P) | O → S (Low P)',
+        quality: 1.0,
+        h: h2,
+        rho: stDisch.rhoLbFt3,
+        deltaP: Math.max(0, P_high_gauge_psig - P_low_psig),
+        description: mode === 'cooling'
+          ? `24V pilot solenoid is DE-ENERGIZED (Cooling). Pilot vents the LEFT end chamber to suction (Low P) while high discharge pressure (ΔP = ${(P_high_gauge_psig - P_low_psig).toFixed(0)} psi) pushes the dual pistons & C-shaped D-slide LEFT—sealing Indoor (I) to Suction (S) and sending hot gas (D) to the Outdoor coil (O).`
+          : `24V pilot solenoid is ENERGIZED (Heating). Pilot vents the RIGHT end chamber to suction (Low P) while high discharge pressure (ΔP = ${(P_high_gauge_psig - P_low_psig).toFixed(0)} psi) pushes the dual pistons & C-shaped D-slide RIGHT—sealing Outdoor (O) to Suction (S) and sending hot gas (D) to the Indoor coil (I).`
+      },
       condenser: {
         id: 'condenser',
         title: isR744Transcritical

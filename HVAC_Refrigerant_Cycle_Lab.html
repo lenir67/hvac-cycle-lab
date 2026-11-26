@@ -1054,7 +1054,7 @@ input[type="range"] {
             <div class="insp-metrics" id="insp-metrics"></div>
           </div>
           <div class="insp-desc" id="insp-desc">
-            Move your cursor over the Compressor, Suction Accumulator, Condenser, Filter-Drier, Sight Glass, Metering Device, Evaporator, or lines to inspect exact pressure, saturation temp, vapor quality, enthalpy, and density.
+            Move your cursor over the Compressor, 4-Way Reversing Valve, Suction Accumulator, Condenser, Filter-Drier, Sight Glass, Metering Device, Evaporator, or lines to inspect exact pressure, saturation temp, vapor quality, enthalpy, and density.
           </div>
         </div>
       </div>
@@ -9092,6 +9092,25 @@ function calcSymmetricalComponents(va, vb, vc) {
         rho: stDisch.rhoLbFt3,
         description: `Hottest point in the cycle (${tDisch.toFixed(1)}°F). Carries both evaporator heat (${Math.round(qEvap).toLocaleString()} BTU/hr) and heat of compression (${Math.round(wCompFluid).toLocaleString()} BTU/hr) toward the ${isR744Transcritical ? 'gas cooler' : 'condenser'}.`
       },
+      reversing_valve: {
+        id: 'reversing_valve',
+        title: '2c. 4-Way Reversing Valve (Pilot-Operated Slide)',
+        short: '4-Way Valve',
+        P_psig: P_high_gauge_psig,
+        P_psia: P_high_psia,
+        T: tDisch,
+        T_sat: condLabelT,
+        phase: mode === 'cooling'
+          ? 'Cooling (Pilot OFF) • D → O (High P) | I → S (Low P)'
+          : 'Heating (Pilot ON) • D → I (High P) | O → S (Low P)',
+        quality: 1.0,
+        h: h2,
+        rho: stDisch.rhoLbFt3,
+        deltaP: Math.max(0, P_high_gauge_psig - P_low_psig),
+        description: mode === 'cooling'
+          ? `24V pilot solenoid is DE-ENERGIZED (Cooling). Pilot vents the LEFT end chamber to suction (Low P) while high discharge pressure (ΔP = ${(P_high_gauge_psig - P_low_psig).toFixed(0)} psi) pushes the dual pistons & C-shaped D-slide LEFT—sealing Indoor (I) to Suction (S) and sending hot gas (D) to the Outdoor coil (O).`
+          : `24V pilot solenoid is ENERGIZED (Heating). Pilot vents the RIGHT end chamber to suction (Low P) while high discharge pressure (ΔP = ${(P_high_gauge_psig - P_low_psig).toFixed(0)} psi) pushes the dual pistons & C-shaped D-slide RIGHT—sealing Outdoor (O) to Suction (S) and sending hot gas (D) to the Indoor coil (I).`
+      },
       condenser: {
         id: 'condenser',
         title: isR744Transcritical
@@ -10289,21 +10308,29 @@ function calcSymmetricalComponents(va, vb, vc) {
       // Note: Coil serpentines reverse flow direction when Cooling vs Heating!
       const isCooling = mode === 'cooling';
 
-      // True compressor discharge -> Reversing valve Port D -> active condenser coil top
+      // True compressor discharge -> Reversing valve Top Port D (600, 88) -> active condenser coil top
       const dischToValve = [
         { x: 672, y: 264 },
         { x: 672, y: 224 },
-        { x: 632, y: 224 },
-        { x: 632, y: 192 }
+        { x: 704, y: 224 },
+        { x: 704, y: 74 },
+        { x: 600, y: 74 },
+        { x: 600, y: 92 }
       ];
       const valveToOutdoorTop = [
-        { x: 660, y: 152 },
+        { x: 644, y: 146 },
+        { x: 644, y: 166 },
+        { x: 724, y: 166 },
+        { x: 738, y: 152 },
         { x: 842, y: 152 },
         { x: 862, y: 248 },
         { x: 912, y: 248 }
       ];
       const valveToIndoorTop = [
-        { x: 540, y: 152 },
+        { x: 556, y: 146 },
+        { x: 556, y: 166 },
+        { x: 516, y: 166 },
+        { x: 502, y: 152 },
         { x: 345, y: 152 },
         { x: 325, y: 272 },
         { x: 294, y: 272 }
@@ -10326,8 +10353,8 @@ function calcSymmetricalComponents(va, vb, vc) {
       const outdoorSerpBotUp = buildOutdoorSerpentinePoints(922, 1104, OUTDOOR_YS, false);
 
       const suctInStub = [
-        { x: 568, y: 192 },
-        { x: 568, y: 224 },
+        { x: 600, y: 146 },
+        { x: 600, y: 224 },
         { x: 494, y: 224 },
         { x: 494, y: 286 }
       ];
@@ -10343,7 +10370,7 @@ function calcSymmetricalComponents(va, vb, vc) {
 
       if (isCooling) {
         return {
-          discharge: new PolyPath(rc([...dischToValve, { x: 632, y: 152 }, ...valveToOutdoorTop], 18)),
+          discharge: new PolyPath(rc([...dischToValve, { x: 600, y: 112 }, { x: 644, y: 118 }, ...valveToOutdoorTop], 14)),
           condenser: new PolyPath(outdoorSerpTopDown),
           liquid: new PolyPath(rc([
             ...outdoorBottomToLiquid,
@@ -10355,13 +10382,13 @@ function calcSymmetricalComponents(va, vb, vc) {
           evaporator: new PolyPath(indoorSerpBotUp),
           suction: new PolyPath(rc([
             ...[...valveToIndoorTop].reverse(),
-            { x: 568, y: 152 },
+            { x: 578, y: 128 },
             ...suctInStub
-          ], 18)),
+          ], 14)),
           suctionOut: new PolyPath(rc(suctOutStub, 14)),
           // Static pipe segments for SVG background stroke
-          indoorTopPipe: new PolyPath(rc(valveToIndoorTop, 18)),
-          outdoorTopPipe: new PolyPath(rc(valveToOutdoorTop, 18)),
+          indoorTopPipe: new PolyPath(rc(valveToIndoorTop, 14)),
+          outdoorTopPipe: new PolyPath(rc(valveToOutdoorTop, 14)),
           indoorBotPipe: new PolyPath(rc(indoorBottomToLiquid, 18)),
           outdoorBotPipe: new PolyPath(rc(outdoorBottomToLiquid, 18)),
           liquidLineBase: new PolyPath([{ x: 345, y: 595 }, { x: 842, y: 595 }]),
@@ -10372,7 +10399,7 @@ function calcSymmetricalComponents(va, vb, vc) {
       } else {
         // Heat Pump Heating Mode!
         return {
-          discharge: new PolyPath(rc([...dischToValve, { x: 632, y: 152 }, ...valveToIndoorTop], 18)),
+          discharge: new PolyPath(rc([...dischToValve, { x: 600, y: 112 }, { x: 556, y: 118 }, ...valveToIndoorTop], 14)),
           condenser: new PolyPath(indoorSerpTopDown),
           liquid: new PolyPath(rc([
             ...indoorBottomToLiquid,
@@ -10384,12 +10411,12 @@ function calcSymmetricalComponents(va, vb, vc) {
           evaporator: new PolyPath(outdoorSerpBotUp),
           suction: new PolyPath(rc([
             ...[...valveToOutdoorTop].reverse(),
-            { x: 568, y: 152 },
+            { x: 622, y: 128 },
             ...suctInStub
-          ], 18)),
+          ], 14)),
           suctionOut: new PolyPath(rc(suctOutStub, 14)),
-          indoorTopPipe: new PolyPath(rc(valveToIndoorTop, 18)),
-          outdoorTopPipe: new PolyPath(rc(valveToOutdoorTop, 18)),
+          indoorTopPipe: new PolyPath(rc(valveToIndoorTop, 14)),
+          outdoorTopPipe: new PolyPath(rc(valveToOutdoorTop, 14)),
           indoorBotPipe: new PolyPath(rc(indoorBottomToLiquid, 18)),
           outdoorBotPipe: new PolyPath(rc(outdoorBottomToLiquid, 18)),
           liquidLineBase: new PolyPath([{ x: 345, y: 595 }, { x: 842, y: 595 }]),
@@ -10511,8 +10538,8 @@ function calcSymmetricalComponents(va, vb, vc) {
               <path d="${coolingPaths.condenser.toSVGPath()}" stroke="#475569" stroke-width="14"/>
 
               <!-- Armaflex Insulation Cutaway on Suction Line -->
-              <path d="M 358 152 L 520 152" stroke="#0f172a" stroke-width="24" stroke-dasharray="140 24" opacity="0.72"/>
-              <path d="M 358 152 L 520 152" stroke="#334155" stroke-width="24" stroke-dasharray="6 10" opacity="0.35"/>
+              <path d="M 358 152 L 492 152" stroke="#0f172a" stroke-width="24" stroke-dasharray="116 20" opacity="0.72"/>
+              <path d="M 358 152 L 492 152" stroke="#334155" stroke-width="24" stroke-dasharray="6 10" opacity="0.35"/>
             </g>
 
             <!-- Metallic Specular Copper Sheen along top pipe rim -->
@@ -10545,12 +10572,15 @@ function calcSymmetricalComponents(va, vb, vc) {
 
             <!-- ============ CENTER: 4-WAY REVERSING VALVE CUTAWAY ============ -->
             <g id="reversing-valve-shell">
-              <rect x="538" y="122" width="124" height="60" rx="22" fill="url(#brassBody)" stroke="#fcd34d" stroke-width="2"/>
-              <rect x="544" y="128" width="112" height="48" rx="17" fill="#0f172a" stroke="#b45309" stroke-width="1.5"/>
-              <!-- Solenoid Pilot Coil on Top -->
-              <rect x="580" y="96" width="40" height="22" rx="4" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5"/>
-              <circle cx="600" cy="107" r="5" id="rv-solenoid-led" fill="#475569"/>
-              <text x="600" y="90" text-anchor="middle" class="svg-sublabel" id="rv-mode-tag">4-WAY VALVE</text>
+              <!-- Main Brass Valve Cylinder (1-over-3 Port Layout: D top; I, S, O bottom) -->
+              <rect x="520" y="88" width="160" height="60" rx="22" fill="url(#brassBody)" stroke="#fcd34d" stroke-width="2"/>
+              <rect x="526" y="94" width="148" height="48" rx="16" fill="#090f1d" stroke="#b45309" stroke-width="1.5"/>
+              <!-- Pilot Valve Body + 24V Solenoid Coil on Top -->
+              <rect x="546" y="34" width="76" height="24" rx="7" fill="url(#brassBody)" stroke="#fcd34d" stroke-width="1.6"/>
+              <rect x="550" y="38" width="68" height="16" rx="4" fill="#090f1d" stroke="#b45309" stroke-width="1"/>
+              <rect x="622" y="30" width="38" height="32" rx="5" fill="#1e293b" stroke="#94a3b8" stroke-width="1.6"/>
+              <circle cx="641" cy="46" r="5" id="rv-solenoid-led" fill="#475569"/>
+              <text x="600" y="21" text-anchor="middle" class="svg-sublabel" id="rv-mode-tag">4-WAY REVERSING VALVE</text>
             </g>
 
             <!-- ============ SUCTION ACCUMULATOR CUTAWAY ============ -->
@@ -10656,10 +10686,11 @@ function calcSymmetricalComponents(va, vb, vc) {
               <rect id="hit-coil-indoor" data-node="evaporator" x="62" y="242" width="244" height="282" rx="10" class="hit-zone"/>
               <rect id="hit-coil-outdoor" data-node="condenser" x="896" y="218" width="234" height="302" rx="10" class="hit-zone"/>
               <rect data-node="compressor" x="590" y="260" width="154" height="234" rx="34" class="hit-zone"/>
-              <rect id="hit-top-right" data-node="discharge_line" x="655" y="130" width="200" height="60" rx="12" class="hit-zone"/>
-              <rect id="hit-disch-stub" data-node="discharge_line" x="620" y="190" width="72" height="70" rx="10" class="hit-zone"/>
-              <rect id="hit-top-left" data-node="suction_line" x="340" y="130" width="215" height="55" rx="12" class="hit-zone"/>
-              <rect id="hit-suct-stub" data-node="suction_line" x="488" y="210" width="88" height="66" rx="10" class="hit-zone"/>
+              <rect id="hit-reversing-valve" data-node="reversing_valve" x="514" y="24" width="172" height="130" rx="14" class="hit-zone"/>
+              <rect id="hit-top-right" data-node="discharge_line" x="714" y="130" width="142" height="52" rx="12" class="hit-zone"/>
+              <rect id="hit-disch-stub" data-node="discharge_line" x="664" y="184" width="54" height="80" rx="10" class="hit-zone"/>
+              <rect id="hit-top-left" data-node="suction_line" x="340" y="130" width="170" height="52" rx="12" class="hit-zone"/>
+              <rect id="hit-suct-stub" data-node="suction_line" x="488" y="198" width="122" height="42" rx="10" class="hit-zone"/>
               <rect id="hit-suct-accum" data-node="accumulator" x="466" y="278" width="84" height="136" rx="14" class="hit-zone"/>
               <rect id="hit-suct-out" data-node="suction_line" x="550" y="250" width="44" height="184" rx="10" class="hit-zone"/>
               <rect data-node="filter_drier" x="468" y="566" width="88" height="60" rx="10" class="hit-zone"/>
@@ -10852,7 +10883,11 @@ function calcSymmetricalComponents(va, vb, vc) {
       }
       const rvTag = this.svgEl.querySelector('#rv-mode-tag');
       if (rvTag) {
-        rvTag.textContent = isCooling ? '4-WAY VALVE (COOLING)' : '4-WAY VALVE (HEATING)';
+        rvTag.textContent = this.labelMode === 'quiz'
+          ? 'COMPONENT [ H ]'
+          : isCooling
+            ? '4-WAY REVERSING VALVE (COOLING • PILOT OFF)'
+            : '4-WAY REVERSING VALVE (HEATING • PILOT ON)';
       }
 
       // Dynamically map reversible hit zones based on Cooling vs Heating mode
@@ -11008,7 +11043,7 @@ function calcSymmetricalComponents(va, vb, vc) {
       const supplySub = isCooling
         ? `ΔT -${p.indoorDeltaT.toFixed(1)}°F • ${(p.tons).toFixed(2)} T`
         : `ΔT +${p.indoorDeltaT.toFixed(1)}°F • ${(p.tons).toFixed(2)} T`;
-      const suctProbeX = isCooling ? 452 : 752;
+      const suctProbeX = isCooling ? 442 : 788;
 
       probesGroup.innerHTML = `
         ${probePill(178, 42, 'RETURN AIR', `${s.inputs.indoorDB.toFixed(0)}°F DB`, returnSub, '#f59e0b')}
@@ -11016,7 +11051,7 @@ function calcSymmetricalComponents(va, vb, vc) {
         ${probePill(1022, 34, isCooling ? 'COND EXHAUST' : 'EVAP EXHAUST', `${p.outdoorExhaustDB.toFixed(1)}°F`, `${Math.round(outdoorCFM)} CFM`, isCooling ? '#ef4444' : '#38bdf8')}
         ${probePill(1094, 542, 'OUTDOOR AIR', `${s.inputs.outdoorDB.toFixed(0)}°F`, `${s.inputs.condAirflowPct}% Airflow`, '#94a3b8')}
         ${probePill(suctProbeX, 114, 'SUCTION LINE', `${g.suctionTempF.toFixed(1)}°F`, `SH ${g.superheatF.toFixed(1)}°F | ${RefDB.formatPressureShort(g.lowPsig)} psi`, '#3b82f6')}
-        ${probePill(740, 232, 'DISCHARGE GAS', `${g.dischargeTempF.toFixed(0)}°F`, `CR ${p.compressionRatio.toFixed(2)}:1`, p.isOverheating ? '#ef4444' : '#f97316')}
+        ${probePill(776, 232, 'DISCHARGE GAS', `${g.dischargeTempF.toFixed(0)}°F`, `CR ${p.compressionRatio.toFixed(2)}:1`, p.isOverheating ? '#ef4444' : '#f97316')}
         ${probePill(698, 545, 'LIQUID LINE', `${g.liquidTempF.toFixed(1)}°F`, `SC ${g.subcoolingF.toFixed(1)}°F | ${RefDB.formatPressureShort(g.highPsig)} psi`, '#db2777')}
       `;
 
@@ -11428,46 +11463,272 @@ function calcSymmetricalComponents(va, vb, vc) {
     }
 
     _draw4WayShuttle(ctx) {
-      // Valve box interior x: 544..656, y: 128..176
-      // Ports: I=(544, 152), S=(568, 176), D=(632, 176), O=(656, 152)
-      const shift = this.valveShuttlePos; // 0 = Cooling (connects I-S & D->O), 1 = Heating (connects O-S & D->I)
+      // Textbook 1-over-3 Pilot-Operated 4-Way Reversing Valve Cutaway:
+      // Main cylinder cutaway: x=526..674 (w=148), y=94..142 (h=48), rx=16
+      // Ports: D=(600, 94) top center; I=(556, 142), S=(600, 142), O=(644, 142) bottom
+      // Pilot valve cylinder: x=550..618, y=38..54; 24V Solenoid Coil: x=622..660, y=30..62
+      const shift = this.valveShuttlePos; // 0 = Cooling (D->O, I->S), 1 = Heating (D->I, O->S)
+      const isHeating = shift >= 0.5;
+      const showLabels = this.labelMode !== 'quiz';
+      const dashOff = -this.animTime * 26;
+
       ctx.save();
-      // Pilot slide cavity connecting left or right pair to S
-      const slideX = RefDB.lerp(548, 604, shift);
-      ctx.fillStyle = '#475569';
-      ctx.strokeStyle = '#cbd5e1';
+
+      // 1. Pressure-colored external Pilot Capillary Tubes (drawn behind cutaway frame)
+      const leftCapColor = lerpColor('#38bdf8', '#ef4444', shift);
+      const rightCapColor = lerpColor('#ef4444', '#38bdf8', shift);
+      const drawCapillary = (pts, color, flowSign) => {
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#78350f';
+        ctx.lineWidth = 4.8;
+        ctx.beginPath();
+        pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+        ctx.stroke();
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([3, 5]);
+        ctx.lineDashOffset = dashOff * flowSign;
+        ctx.beginPath();
+        pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+        ctx.stroke();
+        ctx.setLineDash([]);
+      };
+
+      // Left Pilot Capillary: Pilot Left (562,58) -> Left Valve End Cap (522,118)
+      drawCapillary(
+        [{ x: 562, y: 58 }, { x: 562, y: 66 }, { x: 510, y: 66 }, { x: 510, y: 118 }, { x: 522, y: 118 }],
+        leftCapColor,
+        isHeating ? 1 : -1
+      );
+      // Right Pilot Capillary: Pilot Right (606,58) -> Right Valve End Cap (678,118)
+      drawCapillary(
+        [{ x: 606, y: 58 }, { x: 606, y: 64 }, { x: 688, y: 64 }, { x: 688, y: 118 }, { x: 678, y: 118 }],
+        rightCapColor,
+        isHeating ? -1 : 1
+      );
+      // Center Pilot Suction Bleed: Pilot Center (584,58) -> Valve Back Suction Bleed (584,88)
+      drawCapillary(
+        [{ x: 584, y: 58 }, { x: 584, y: 88 }],
+        '#38bdf8',
+        1
+      );
+
+      // 2. Pilot Solenoid Plunger & 24V Coil Energized Indicator
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(550, 38, 68, 16, 4);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.22)';
+      ctx.fillRect(550, 38, 68, 16);
+      // Pilot shuttle bridges Left-Center (x=557..591) when shift=0, or Center-Right (x=577..611) when shift=1
+      const pilotShuttleX = RefDB.lerp(557, 577, shift);
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.roundRect(pilotShuttleX + 3, 41, 28, 12, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#e2e8f0';
       ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.roundRect(slideX, 146, 52, 26, 10);
+      ctx.roundRect(pilotShuttleX, 40, 34, 14, 5);
+      ctx.stroke();
+      ctx.restore();
+
+      // Energized orange glow around 24V coil when Heating
+      if (shift > 0.15) {
+        ctx.strokeStyle = `rgba(249, 115, 22, ${(0.85 * shift).toFixed(2)})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(622, 30, 38, 32, 5);
+        ctx.stroke();
+      }
+      if (showLabels) {
+        ctx.fillStyle = isHeating ? '#fed7aa' : '#94a3b8';
+        ctx.font = '800 7.5px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(isHeating ? '24V ON' : '24V OFF', 641, 58);
+      }
+
+      // 3. Main Valve Cutaway Interior (Dual Pistons, Pressure Chambers, & C-Shaped D-Slide)
+      const pistonLeftX = RefDB.lerp(538, 560, shift);
+      const pistonRightX = pistonLeftX + 102;
+      const slideCenterX = RefDB.lerp(578, 622, shift);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(526, 94, 148, 48, 16);
+      ctx.clip();
+
+      // Pressure-colored chambers inside cylinder
+      // Left end chamber (Low P vented in Cooling; High P in Heating)
+      ctx.fillStyle = lerpColor('rgba(56, 189, 248, 0.24)', 'rgba(239, 68, 68, 0.28)', shift);
+      ctx.fillRect(526, 94, pistonLeftX - 526, 48);
+      // Right end chamber (High P in Cooling; Low P vented in Heating)
+      ctx.fillStyle = lerpColor('rgba(239, 68, 68, 0.28)', 'rgba(56, 189, 248, 0.24)', shift);
+      ctx.fillRect(pistonRightX, 94, 674 - pistonRightX, 48);
+      // Center chamber (Always High-Pressure Discharge Gas from Port D)
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.20)';
+      ctx.fillRect(pistonLeftX, 94, pistonRightX - pistonLeftX, 48);
+
+      // End-chamber HI / LO pressure tags
+      if (showLabels) {
+        ctx.font = '800 7.2px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        if (shift < 0.35) {
+          ctx.fillStyle = '#fca5a5';
+          ctx.fillText('HI P', (pistonRightX + 674) * 0.5, 110);
+        } else if (shift > 0.65) {
+          ctx.fillStyle = '#fca5a5';
+          ctx.fillText('HI P', (526 + pistonLeftX) * 0.5, 110);
+        }
+      }
+
+      // Connecting tie rod linking both end pistons
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(pistonLeftX, 108, pistonRightX - pistonLeftX, 3.6);
+
+      // Machined Dual Pistons + O-ring seals
+      const drawPiston = (px) => {
+        ctx.fillStyle = '#cbd5e1';
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(px - 3.5, 95, 7, 46, 2);
+        ctx.fill();
+        ctx.stroke();
+        // Top & bottom piston seal rings
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(px - 3.5, 99, 7, 2.5);
+        ctx.fillRect(px - 3.5, 134.5, 7, 2.5);
+      };
+      drawPiston(pistonLeftX);
+      drawPiston(pistonRightX);
+
+      // C-Shaped Nylon D-Slide Cup sealing two adjacent bottom ports (I+S or S+O) to Suction
+      const cupHalfW = 31;
+      const cupLeft = slideCenterX - cupHalfW;
+      const cupRight = slideCenterX + cupHalfW;
+
+      // Outer white/ivory nylon D-cup shell
+      ctx.fillStyle = '#e2e8f0';
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(cupLeft, 142);
+      ctx.lineTo(cupLeft, 124);
+      ctx.quadraticCurveTo(cupLeft, 113, slideCenterX, 113);
+      ctx.quadraticCurveTo(cupRight, 113, cupRight, 124);
+      ctx.lineTo(cupRight, 142);
+      ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Arrow showing active shuttle connection inside valve
-      ctx.strokeStyle = shift < 0.5 ? '#38bdf8' : '#ef4444';
-      ctx.lineWidth = 2.5;
+      // Inner hollow blue suction tunnel inside D-cup
+      ctx.fillStyle = '#0b1324';
       ctx.beginPath();
-      if (shift < 0.5) {
-        // Cooling: I->S curved dome, D->O open path
-        ctx.moveTo(552, 154);
-        ctx.quadraticCurveTo(568, 154, 568, 172);
-        ctx.stroke();
-        ctx.strokeStyle = '#ef4444';
+      ctx.moveTo(cupLeft + 6, 142);
+      ctx.lineTo(cupLeft + 6, 127);
+      ctx.quadraticCurveTo(cupLeft + 6, 119.5, slideCenterX, 119.5);
+      ctx.quadraticCurveTo(cupRight - 6, 119.5, cupRight - 6, 127);
+      ctx.lineTo(cupRight - 6, 142);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.28)';
+      ctx.fill();
+
+      // Animated internal flow arrows: Suction curve inside D-cup + High-P Discharge around cup
+      const drawFlowArrow = (ax, ay, dx, dy, color) => {
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.moveTo(632, 172);
-        ctx.quadraticCurveTo(632, 144, 650, 152);
-        ctx.stroke();
-      } else {
-        // Heating: O->S curved dome, D->I open path
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax - ux * 5.5 - uy * 3.2, ay - uy * 5.5 + ux * 3.2);
+        ctx.lineTo(ax - ux * 5.5 + uy * 3.2, ay - uy * 5.5 - ux * 3.2);
+        ctx.closePath();
+        ctx.fill();
+      };
+
+      if (!isHeating) {
+        // Cooling: I(556)->S(600) inside D-cup; D(600)->O(644) around right side
         ctx.strokeStyle = '#38bdf8';
-        ctx.moveTo(648, 154);
-        ctx.quadraticCurveTo(615, 154, 568, 172);
-        ctx.stroke();
-        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.4;
+        ctx.setLineDash([4, 4]);
+        ctx.lineDashOffset = dashOff;
         ctx.beginPath();
-        ctx.moveTo(632, 172);
-        ctx.quadraticCurveTo(605, 134, 548, 152);
+        ctx.moveTo(556, 141);
+        ctx.quadraticCurveTo(556, 124, 578, 124);
+        ctx.quadraticCurveTo(600, 124, 600, 140);
         ctx.stroke();
+        ctx.setLineDash([]);
+        drawFlowArrow(600, 141, 0, 1, '#38bdf8');
+
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.4;
+        ctx.setLineDash([4, 4]);
+        ctx.lineDashOffset = dashOff;
+        ctx.beginPath();
+        ctx.moveTo(600, 95);
+        ctx.quadraticCurveTo(600, 108, 644, 116);
+        ctx.lineTo(644, 140);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        drawFlowArrow(644, 141, 0, 1, '#ef4444');
+      } else {
+        // Heating: O(644)->S(600) inside D-cup; D(600)->I(556) around left side
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.4;
+        ctx.setLineDash([4, 4]);
+        ctx.lineDashOffset = dashOff;
+        ctx.beginPath();
+        ctx.moveTo(644, 141);
+        ctx.quadraticCurveTo(644, 124, 622, 124);
+        ctx.quadraticCurveTo(600, 124, 600, 140);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        drawFlowArrow(600, 141, 0, 1, '#38bdf8');
+
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.4;
+        ctx.setLineDash([4, 4]);
+        ctx.lineDashOffset = dashOff;
+        ctx.beginPath();
+        ctx.moveTo(600, 95);
+        ctx.quadraticCurveTo(600, 108, 556, 116);
+        ctx.lineTo(556, 140);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        drawFlowArrow(556, 141, 0, 1, '#ef4444');
       }
+
+      ctx.restore(); // end main cylinder clip
+
+      // 4. Port Labels (D top, I / S / O bottom) on brass rim
+      if (showLabels) {
+        const portTag = (px, py, txt, col) => {
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+          ctx.beginPath();
+          ctx.roundRect(px - 7, py - 6.5, 14, 13, 3);
+          ctx.fill();
+          ctx.fillStyle = col;
+          ctx.font = '800 8.5px ui-monospace, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(txt, px, py + 3);
+        };
+        portTag(600, 88, 'D', '#fca5a5');
+        portTag(556, 149, 'I', isHeating ? '#fca5a5' : '#7dd3fc');
+        portTag(600, 149, 'S', '#7dd3fc');
+        portTag(644, 149, 'O', isHeating ? '#7dd3fc' : '#fca5a5');
+      }
+
       ctx.restore();
     }
 
@@ -12119,7 +12380,7 @@ function calcSymmetricalComponents(va, vb, vc) {
     {
       id: 'compressor',
       nodeId: 'compressor',
-      badge: 'Stage 1 of 6',
+      badge: 'Stage 1 of 7',
       title: 'The Hermetic Scroll Compressor (Vapor Pump)',
       summary:
         'Draws in cool, low-pressure superheated vapor (Point 1) and mechanically squeezes it into hot, high-pressure superheated vapor (Point 2).',
@@ -12131,9 +12392,23 @@ function calcSymmetricalComponents(va, vb, vc) {
       watchFor: 'Watch the orbiting scroll trap crescent pockets inward and check the Compression Ratio & Discharge Temp!'
     },
     {
+      id: 'reversing_valve',
+      nodeId: 'reversing_valve',
+      badge: 'Stage 2 of 7',
+      title: '4-Way Reversing Valve (Pilot-Operated Slide)',
+      summary:
+        'Uses system pressure differential (High P vs. Low P)—controlled by a tiny 24V pilot solenoid—to slide a C-shaped D-cup and swap indoor/outdoor coil roles.',
+      keyPoints: [
+        'Pilot Solenoid & Capillaries: Energizing 24V shifts the pilot shuttle to vent one end piston chamber to Suction (Low P) while High P pushes the piston assembly across.',
+        'Cooling (Pilot OFF): Slides LEFT so D → O (hot gas outdoors) and I → S (cool vapor back to accumulator/compressor).',
+        'Heating (Pilot ON): Slides RIGHT so D → I (hot gas indoors) and O → S (outdoor evaporator vapor to compressor).'
+      ],
+      watchFor: 'Toggle Mode between A/C Cooling and Heat Pump Heating to watch the pilot capillaries flip color, pistons slide, and D-cup re-route!'
+    },
+    {
       id: 'condenser',
       nodeId: 'condenser',
-      badge: 'Stage 2 of 6',
+      badge: 'Stage 3 of 7',
       title: 'The Condenser Coil (3-Zone Heat Rejection)',
       summary:
         'Because high pressure raises the refrigerant’s boiling/condensing temperature above outdoor air, heat flows naturally OUT of the coil.',
@@ -12147,7 +12422,7 @@ function calcSymmetricalComponents(va, vb, vc) {
     {
       id: 'metering',
       nodeId: 'metering_device',
-      badge: 'Stage 3 of 6',
+      badge: 'Stage 4 of 7',
       title: 'Filter-Drier, Sight Glass & Metering Device',
       summary:
         'Creates a sharp pressure drop from High-Side to Low-Side at constant enthalpy, spraying cold liquid + flash gas into the evaporator.',
@@ -12161,7 +12436,7 @@ function calcSymmetricalComponents(va, vb, vc) {
     {
       id: 'evaporator',
       nodeId: 'evaporator',
-      badge: 'Stage 4 of 6',
+      badge: 'Stage 5 of 7',
       title: 'The Evaporator Coil (Latent Boiling & Superheat)',
       summary:
         'Low pressure drops the refrigerant’s boiling point (~40°F) below indoor air (~75°F), pulling sensible and latent heat out of the airstream.',
@@ -12175,7 +12450,7 @@ function calcSymmetricalComponents(va, vb, vc) {
     {
       id: 'accumulator',
       nodeId: 'accumulator',
-      badge: 'Stage 5 of 6',
+      badge: 'Stage 6 of 7',
       title: 'Suction-Line Accumulator (Liquid Trap & Oil Return)',
       summary:
         'Sits ahead of the compressor suction port to catch liquid carryover (especially in Heat Pump Heating mode) so only dry vapor reaches the scroll.',
@@ -12189,7 +12464,7 @@ function calcSymmetricalComponents(va, vb, vc) {
     {
       id: 'balance',
       nodeId: 'suction_line',
-      badge: 'Stage 6 of 6',
+      badge: 'Stage 7 of 7',
       title: 'First Law Energy Balance & Diagnostic Mastery',
       summary:
         'Energy cannot be created or destroyed: Every BTU absorbed indoors PLUS compressor work MUST be rejected outdoors.',
