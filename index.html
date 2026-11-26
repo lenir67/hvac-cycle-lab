@@ -120,7 +120,7 @@
             <div class="insp-metrics" id="insp-metrics"></div>
           </div>
           <div class="insp-desc" id="insp-desc">
-            Move your cursor over the Compressor, Condenser, Filter-Drier, Sight Glass, Metering Device, Evaporator, or lines to inspect exact pressure, saturation temp, vapor quality, enthalpy, and density.
+            Move your cursor over the Compressor, Suction Accumulator, Condenser, Filter-Drier, Sight Glass, Metering Device, Evaporator, or lines to inspect exact pressure, saturation temp, vapor quality, enthalpy, and density.
           </div>
         </div>
       </div>
@@ -256,6 +256,17 @@
         </div>
 
         <div class="slider-group">
+          <div class="accum-control-card">
+            <div class="accum-ctrl-head">
+              <span>Suction-Line Accumulator</span>
+              <span class="status-pill status-good" id="badge-accum">STANDBY 6%</span>
+            </div>
+            <div class="accum-ctrl-sub" id="accum-control-sub">Level: 6% • U-Tube Dry Vapor • Oil Bleed Active</div>
+            <div class="accum-ctrl-actions">
+              <button class="action-btn primary" id="btn-toggle-accumulator" type="button">Active (ON)</button>
+              <button class="action-btn" id="btn-inspect-accumulator" type="button">Inspect Cutaway</button>
+            </div>
+          </div>
           <div class="slider-row">
             <div class="slider-head"><span>Indoor Return Air Dry-Bulb</span><span class="slider-val" id="val-indoor-db">75°F</span></div>
             <input type="range" id="rng-indoor-db" min="55" max="95" step="1" value="75" />

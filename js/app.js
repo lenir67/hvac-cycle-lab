@@ -21,7 +21,8 @@
       outdoorRH: 55,
       condAirflowPct: 100,
       chargePct: 100,
-      compressorSpeed: 1.0
+      compressorSpeed: 1.0,
+      accumulatorEnabled: true
     },
     cycle: null,
     paused: false,
@@ -264,6 +265,43 @@
     document.getElementById('rng-charge').value = state.params.chargePct;
     document.getElementById('rng-comp-speed').value = Math.round(state.params.compressorSpeed * 100);
 
+    // Sync Suction-Line Accumulator control card
+    const acc = s.performance.accumulator;
+    if (acc) {
+      const accBadge = document.getElementById('badge-accum');
+      const accSub = document.getElementById('accum-control-sub');
+      const accBtn = document.getElementById('btn-toggle-accumulator');
+      if (accBadge) {
+        const cls = !acc.enabled
+          ? 'status-warn'
+          : acc.isOverflowing
+            ? 'status-danger'
+            : acc.isProtecting
+              ? 'status-good'
+              : 'status-good';
+        accBadge.className = `status-pill ${cls}`;
+        accBadge.textContent = !acc.enabled
+          ? 'BYPASSED'
+          : acc.isOverflowing
+            ? `OVERFLOW ${Math.round(acc.levelPct)}%`
+            : acc.status === 'trapping'
+              ? `TRAPPING ${Math.round(acc.levelPct)}%`
+              : acc.status === 'holding'
+                ? `HOLDING ${Math.round(acc.levelPct)}%`
+                : `STANDBY ${Math.round(acc.levelPct)}%`;
+      }
+      if (accSub) {
+        accSub.textContent = !acc.enabled
+          ? 'Bypassed • Direct suction to compressor (no liquid catch)'
+          : `Level: ${Math.round(acc.levelPct)}% • In: ${(acc.inletQuality * 100).toFixed(0)}% vap → Out: ${(acc.outletQuality * 100).toFixed(0)}% vap • Oil Bleed ${acc.oilReturnActive ? 'ON' : 'OFF'}`;
+      }
+      if (accBtn) {
+        accBtn.textContent = acc.enabled ? 'Active (ON)' : 'Bypassed (OFF)';
+        accBtn.classList.toggle('primary', acc.enabled);
+        accBtn.classList.toggle('warn', !acc.enabled);
+      }
+    }
+
     // Disable charge/airflow sliders during Mystery Fault Mode so students diagnose from gauges
     const lockSliders = state.mystery.active;
     ['rng-indoor-cfm', 'rng-cond-air', 'rng-charge'].forEach((id) => {
@@ -484,11 +522,23 @@
     });
 
     document.getElementById('btn-reset').addEventListener('click', () => {
-      state.params.indoorDB = 75;
+      state.params.indoorDB = state.params.mode === 'heating' ? 70 : 75;
       state.params.indoorRH = 50;
       state.params.outdoorDB = state.params.mode === 'heating' ? 42 : 95;
       state.params.compressorSpeed = 1.0;
+      state.params.accumulatorEnabled = true;
       applyFaultPreset('none');
+    });
+
+    document.getElementById('btn-toggle-accumulator')?.addEventListener('click', () => {
+      state.params.accumulatorEnabled = !state.params.accumulatorEnabled;
+      recompute();
+    });
+
+    document.getElementById('btn-inspect-accumulator')?.addEventListener('click', () => {
+      state.selectedNodeId = 'accumulator';
+      if (renderer) renderer.setSelectedNode('accumulator');
+      updateInspector();
     });
 
     // Top Selectors

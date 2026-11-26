@@ -322,19 +322,44 @@
       this.airParticles = [];
       this.condensateDrops = [];
       this.sightBubbles = [];
+      this.accumDrops = [];
+      this.accumBubbles = [];
+      this.accumOilDrops = [];
       this._initParticles();
 
       this._buildDOM();
     }
 
     _initParticles() {
-      for (let i = 0; i < 230; i++) {
+      for (let i = 0; i < 252; i++) {
         this.fluidParticles.push({
-          seg: i % 5,
+          seg: i % 6,
           t: Math.random(),
           offset: (Math.random() - 0.5) * 6.5,
           size: 1.5 + Math.random() * 2.1,
           phaseSeed: Math.random() * Math.PI * 2
+        });
+      }
+      for (let i = 0; i < 14; i++) {
+        this.accumDrops.push({
+          x: (Math.random() - 0.5) * 14,
+          y: Math.random(),
+          speed: 0.7 + Math.random() * 0.6,
+          r: 1.4 + Math.random() * 1.4
+        });
+      }
+      for (let i = 0; i < 18; i++) {
+        this.accumBubbles.push({
+          xFrac: 0.1 + Math.random() * 0.8,
+          y: Math.random(),
+          speed: 0.45 + Math.random() * 0.55,
+          r: 1.1 + Math.random() * 1.6
+        });
+      }
+      for (let i = 0; i < 8; i++) {
+        this.accumOilDrops.push({
+          t: i / 8,
+          speed: 0.35 + (i % 3) * 0.08
         });
       }
       for (let i = 0; i < 56; i++) {
@@ -403,12 +428,17 @@
       const outdoorSerpTopDown = buildOutdoorSerpentinePoints(922, 1104, OUTDOOR_YS, true);
       const outdoorSerpBotUp = buildOutdoorSerpentinePoints(922, 1104, OUTDOOR_YS, false);
 
-      const accumToComp = [
+      const suctInStub = [
         { x: 568, y: 192 },
         { x: 568, y: 224 },
-        { x: 508, y: 224 },
-        { x: 508, y: 288 },
-        { x: 508, y: 422 },
+        { x: 494, y: 224 },
+        { x: 494, y: 286 }
+      ];
+      const suctOutStub = [
+        { x: 526, y: 286 },
+        { x: 526, y: 256 },
+        { x: 566, y: 256 },
+        { x: 566, y: 422 },
         { x: 595, y: 422 }
       ];
 
@@ -429,8 +459,9 @@
           suction: new PolyPath(rc([
             ...[...valveToIndoorTop].reverse(),
             { x: 568, y: 152 },
-            ...accumToComp
+            ...suctInStub
           ], 18)),
+          suctionOut: new PolyPath(rc(suctOutStub, 14)),
           // Static pipe segments for SVG background stroke
           indoorTopPipe: new PolyPath(rc(valveToIndoorTop, 18)),
           outdoorTopPipe: new PolyPath(rc(valveToOutdoorTop, 18)),
@@ -438,7 +469,8 @@
           outdoorBotPipe: new PolyPath(rc(outdoorBottomToLiquid, 18)),
           liquidLineBase: new PolyPath([{ x: 345, y: 595 }, { x: 842, y: 595 }]),
           dischBase: new PolyPath(rc(dischToValve, 14)),
-          suctBase: new PolyPath(rc(accumToComp, 18))
+          suctInBase: new PolyPath(rc(suctInStub, 14)),
+          suctOutBase: new PolyPath(rc(suctOutStub, 14))
         };
       } else {
         // Heat Pump Heating Mode!
@@ -456,15 +488,17 @@
           suction: new PolyPath(rc([
             ...[...valveToOutdoorTop].reverse(),
             { x: 568, y: 152 },
-            ...accumToComp
+            ...suctInStub
           ], 18)),
+          suctionOut: new PolyPath(rc(suctOutStub, 14)),
           indoorTopPipe: new PolyPath(rc(valveToIndoorTop, 18)),
           outdoorTopPipe: new PolyPath(rc(valveToOutdoorTop, 18)),
           indoorBotPipe: new PolyPath(rc(indoorBottomToLiquid, 18)),
           outdoorBotPipe: new PolyPath(rc(outdoorBottomToLiquid, 18)),
           liquidLineBase: new PolyPath([{ x: 345, y: 595 }, { x: 842, y: 595 }]),
           dischBase: new PolyPath(rc(dischToValve, 14)),
-          suctBase: new PolyPath(rc(accumToComp, 18))
+          suctInBase: new PolyPath(rc(suctInStub, 14)),
+          suctOutBase: new PolyPath(rc(suctOutStub, 14))
         };
       }
     }
@@ -569,7 +603,8 @@
               <path d="${coolingPaths.indoorTopPipe.toSVGPath()}" stroke="#475569" stroke-width="18"/>
               <path d="${coolingPaths.outdoorTopPipe.toSVGPath()}" stroke="#475569" stroke-width="18"/>
               <path d="${coolingPaths.dischBase.toSVGPath()}" stroke="#475569" stroke-width="16"/>
-              <path d="${coolingPaths.suctBase.toSVGPath()}" stroke="#475569" stroke-width="18"/>
+              <path d="${coolingPaths.suctInBase.toSVGPath()}" stroke="#475569" stroke-width="18"/>
+              <path d="${coolingPaths.suctOutBase.toSVGPath()}" stroke="#475569" stroke-width="18"/>
               <path d="${coolingPaths.indoorBotPipe.toSVGPath()}" stroke="#475569" stroke-width="14"/>
               <path d="${coolingPaths.outdoorBotPipe.toSVGPath()}" stroke="#475569" stroke-width="14"/>
               <path d="${coolingPaths.liquidLineBase.toSVGPath()}" stroke="#475569" stroke-width="14"/>
@@ -588,7 +623,8 @@
               <path d="${coolingPaths.indoorTopPipe.toSVGPath()}" stroke-width="11"/>
               <path d="${coolingPaths.outdoorTopPipe.toSVGPath()}" stroke-width="11"/>
               <path d="${coolingPaths.dischBase.toSVGPath()}" stroke-width="9"/>
-              <path d="${coolingPaths.suctBase.toSVGPath()}" stroke-width="11"/>
+              <path d="${coolingPaths.suctInBase.toSVGPath()}" stroke-width="11"/>
+              <path d="${coolingPaths.suctOutBase.toSVGPath()}" stroke-width="11"/>
               <path d="${coolingPaths.indoorBotPipe.toSVGPath()}" stroke-width="7.5"/>
               <path d="${coolingPaths.outdoorBotPipe.toSVGPath()}" stroke-width="7.5"/>
               <path d="${coolingPaths.liquidLineBase.toSVGPath()}" stroke-width="7.5"/>
@@ -601,7 +637,8 @@
               <path d="${coolingPaths.indoorTopPipe.toSVGPath()}" stroke-width="12"/>
               <path d="${coolingPaths.outdoorTopPipe.toSVGPath()}" stroke-width="12"/>
               <path d="${coolingPaths.dischBase.toSVGPath()}" stroke-width="10"/>
-              <path d="${coolingPaths.suctBase.toSVGPath()}" stroke-width="12"/>
+              <path d="${coolingPaths.suctInBase.toSVGPath()}" stroke-width="12"/>
+              <path d="${coolingPaths.suctOutBase.toSVGPath()}" stroke-width="12"/>
               <path d="${coolingPaths.indoorBotPipe.toSVGPath()}" stroke-width="8.5"/>
               <path d="${coolingPaths.outdoorBotPipe.toSVGPath()}" stroke-width="8.5"/>
               <path d="${coolingPaths.liquidLineBase.toSVGPath()}" stroke-width="8.5"/>
@@ -621,11 +658,8 @@
 
             <!-- ============ SUCTION ACCUMULATOR CUTAWAY ============ -->
             <g id="suction-accumulator">
-              <rect x="480" y="288" width="56" height="118" rx="20" fill="url(#metalShell)" stroke="#64748b" stroke-width="2"/>
-              <rect x="487" y="295" width="42" height="104" rx="14" fill="#090f1d" stroke="#334155" stroke-width="1"/>
-              <!-- Internal U-Tube -->
-              <path d="M 498 302 L 498 378 Q 498 394 510 394 Q 522 394 522 378 L 522 308" fill="none" stroke="#94a3b8" stroke-width="4"/>
-              <circle cx="514" cy="389" r="2" fill="#38bdf8"/>
+              <rect x="472" y="284" width="72" height="124" rx="20" fill="url(#metalShell)" stroke="#94a3b8" stroke-width="2"/>
+              <rect x="479" y="291" width="58" height="110" rx="14" fill="#090f1d" stroke="#334155" stroke-width="1"/>
             </g>
 
             <!-- ============ HERMETIC SCROLL COMPRESSOR CUTAWAY ============ -->
@@ -728,7 +762,9 @@
               <rect id="hit-top-right" data-node="discharge_line" x="655" y="130" width="200" height="60" rx="12" class="hit-zone"/>
               <rect id="hit-disch-stub" data-node="discharge_line" x="620" y="190" width="72" height="70" rx="10" class="hit-zone"/>
               <rect id="hit-top-left" data-node="suction_line" x="340" y="130" width="215" height="55" rx="12" class="hit-zone"/>
-              <rect id="hit-suct-accum" data-node="suction_line" x="480" y="215" width="94" height="225" rx="12" class="hit-zone"/>
+              <rect id="hit-suct-stub" data-node="suction_line" x="488" y="210" width="88" height="66" rx="10" class="hit-zone"/>
+              <rect id="hit-suct-accum" data-node="accumulator" x="466" y="278" width="84" height="136" rx="14" class="hit-zone"/>
+              <rect id="hit-suct-out" data-node="suction_line" x="550" y="250" width="44" height="184" rx="10" class="hit-zone"/>
               <rect data-node="filter_drier" x="468" y="566" width="88" height="60" rx="10" class="hit-zone"/>
               <rect data-node="liquid_line" x="576" y="566" width="130" height="60" rx="10" class="hit-zone"/>
               <rect id="hit-valve-indoor" data-node="metering_device" x="346" y="544" width="94" height="84" rx="10" class="hit-zone"/>
@@ -875,6 +911,12 @@
         }
         return lerpColor('#22d3ee', '#3b82f6', smoothstep(wetEnd - 0.06, Math.min(1, wetEnd + 0.06), frac));
       }
+      if (segName === 'suction') {
+        const wetMix = vis
+          ? clamp(Math.max(vis.floodbackAmt || 0, (vis.accumInletWet || 0) * 14), 0, 1)
+          : (p.isFloodback || (p.accumulator && p.accumulator.inletQuality < 0.995)) ? 1 : 0;
+        return lerpColor('#3b82f6', '#06b6d4', wetMix);
+      }
       const fbMix = vis ? clamp((vis.floodbackAmt || 0), 0, 1) : (p.isFloodback ? 1 : 0);
       return lerpColor('#3b82f6', '#06b6d4', fbMix);
     }
@@ -981,6 +1023,29 @@
       const labelFg = isLight ? '#0f172a' : '#f8fafc';
       const labelBorder = isLight ? '#94a3b8' : '#475569';
 
+      const acc = p.accumulator || { enabled: true, levelPct: 8, isOverflowing: false, isProtecting: false };
+      const accTechLabel = !acc.enabled
+        ? 'ACCUMULATOR (BYPASSED)'
+        : acc.isOverflowing
+          ? 'ACCUMULATOR: OVERFLOW!'
+          : acc.isProtecting
+            ? `ACCUMULATOR • TRAPPING (${Math.round(acc.levelPct)}%)`
+            : `SUCTION ACCUMULATOR (${Math.round(acc.levelPct)}%)`;
+      const accBegLabel = !acc.enabled
+        ? 'CATCH TANK (OFF)'
+        : acc.isOverflowing
+          ? 'CATCH TANK FULL!'
+          : acc.isProtecting
+            ? 'CATCHING LIQUID!'
+            : `LIQUID CATCH TANK (${Math.round(acc.levelPct)}%)`;
+      const accAccent = !acc.enabled
+        ? '#64748b'
+        : acc.isOverflowing
+          ? '#ef4444'
+          : acc.isProtecting
+            ? '#22d3ee'
+            : labelBorder;
+
       const compLabels = {
         tech: {
           indoor: isCooling ? 'EVAPORATOR COIL (Indoor)' : 'CONDENSER COIL (Indoor)',
@@ -990,7 +1055,7 @@
           sight: 'SIGHT GLASS',
           meterIn: isCooling ? `${s.metering.toUpperCase()} (ACTIVE)` : 'CHECK BYPASS',
           meterOut: isCooling ? 'CHECK BYPASS' : `${s.metering.toUpperCase()} (ACTIVE)`,
-          accum: 'SUCTION ACCUMULATOR'
+          accum: accTechLabel
         },
         beginner: {
           indoor: isCooling ? 'INDOOR COOLING COIL (Absorbs Heat)' : 'INDOOR HEATING COIL (Releases Heat)',
@@ -1000,7 +1065,7 @@
           sight: 'LIQUID WINDOW',
           meterIn: isCooling ? 'PRESSURE DROP VALVE' : 'BYPASS OPEN',
           meterOut: isCooling ? 'BYPASS OPEN' : 'PRESSURE DROP VALVE',
-          accum: 'LIQUID CATCH TANK'
+          accum: accBegLabel
         },
         quiz: {
           indoor: 'COMPONENT [ A ]',
@@ -1028,7 +1093,7 @@
         ${badge(612, 634, compLabels.sight, p.sightGlassBubbles > 0.25 ? '#f59e0b' : '#10b981')}
         ${badge(384, 634, compLabels.meterIn, isCooling ? '#22d3ee' : labelBorder)}
         ${badge(784, 634, compLabels.meterOut, !isCooling ? '#22d3ee' : labelBorder)}
-        ${badge(508, 444, compLabels.accum, labelBorder)}
+        ${badge(508, 428, compLabels.accum, accAccent)}
       `;
 
       // Live Pinned Clamp Probes & Air Readouts
@@ -1084,6 +1149,9 @@
         condensateGPH: p.condensateGPH,
         drierDeltaP: g.drierDeltaP,
         floodbackAmt: p.isFloodback ? 1 : 0,
+        accumLevelPct: p.accumulator ? p.accumulator.levelPct : 8,
+        accumInletWet: p.accumulator ? (1 - p.accumulator.inletQuality) : 0,
+        accumOverflowAmt: p.accumulator && p.accumulator.isOverflowing ? 1 : 0,
         dischargeTempF: g.dischargeTempF,
         trueCondBubF: g.trueCondBubF,
         liquidTempF: g.liquidTempF,
@@ -1117,6 +1185,9 @@
       lerpField('condensateGPH', p.condensateGPH);
       lerpField('drierDeltaP', g.drierDeltaP);
       lerpField('floodbackAmt', p.isFloodback ? 1 : 0);
+      lerpField('accumLevelPct', p.accumulator ? p.accumulator.levelPct : 8);
+      lerpField('accumInletWet', p.accumulator ? (1 - p.accumulator.inletQuality) : 0);
+      lerpField('accumOverflowAmt', p.accumulator && p.accumulator.isOverflowing ? 1 : 0);
       lerpField('dischargeTempF', g.dischargeTempF);
       lerpField('trueCondBubF', g.trueCondBubF);
       lerpField('liquidTempF', g.liquidTempF);
@@ -1185,12 +1256,14 @@
       this._drawPipeFluid(ctx, paths.liquid, 'liquid', 7.5);
       this._drawPipeFluid(ctx, paths.evaporator, 'evaporator', 7.5);
       this._drawPipeFluid(ctx, paths.suction, 'suction', 10.5);
+      this._drawPipeFluid(ctx, paths.suctionOut, 'suctionOut', 10.5);
 
       // 2. Update & draw animated physical fluid particles along exact segments
       this._renderFluidParticles(ctx, paths, effDt);
 
       // 3. Draw Cutaway Mechanical Animations
       this._draw4WayShuttle(ctx);
+      this._drawAccumulator(ctx, effDt);
       this._drawOrbitingScroll(ctx);
       this._drawBlowerWheel(ctx);
       this._drawCondenserFan(ctx);
@@ -1298,7 +1371,8 @@
         { name: 'condenser', path: paths.condenser, baseSpeed: 0.14 * flowMul },
         { name: 'liquid', path: paths.liquid, baseSpeed: 0.24 * flowMul },
         { name: 'evaporator', path: paths.evaporator, baseSpeed: 0.16 * flowMul },
-        { name: 'suction', path: paths.suction, baseSpeed: 0.30 * flowMul }
+        { name: 'suction', path: paths.suction, baseSpeed: 0.30 * flowMul },
+        { name: 'suctionOut', path: paths.suctionOut, baseSpeed: 0.42 * flowMul }
       ];
 
       const desupFrac = vis.desupFrac;
@@ -1373,7 +1447,15 @@
             jitter = calmWave * 0.85;
           }
         } else if (seg.name === 'suction') {
-          if (p.isFloodback && (pt.phaseSeed % 1) < 0.25) {
+          const inletWet = p.isFloodback || (p.accumulator && p.accumulator.inletQuality < 0.995);
+          if (inletWet && (pt.phaseSeed % 1) < 0.28) {
+            isVapor = false;
+          } else {
+            isVapor = true;
+            jitter = calmWave * 1.1;
+          }
+        } else if (seg.name === 'suctionOut') {
+          if (p.isFloodback && (pt.phaseSeed % 1) < 0.28) {
             isVapor = false;
           } else {
             isVapor = true;
@@ -1382,7 +1464,7 @@
         }
 
         // Keep particles centered cleanly inside pipe bore even on tight U-bends
-        const maxLane = seg.name === 'discharge' || seg.name === 'suction' ? 2.3 : 1.45;
+        const maxLane = seg.name === 'discharge' || seg.name === 'suction' || seg.name === 'suctionOut' ? 2.3 : 1.45;
         const laneOff = clamp((pt.offset / 3.25) * (maxLane * 0.7) + jitter * 0.6, -maxLane, maxLane);
         const px = pos.x + nx * laneOff;
         const py = pos.y + ny * laneOff;
@@ -1489,6 +1571,262 @@
         ctx.quadraticCurveTo(605, 134, 548, 152);
         ctx.stroke();
       }
+      ctx.restore();
+    }
+
+    _drawAccumulator(ctx, dt) {
+      const s = this.state;
+      const p = s.performance;
+      const acc = p.accumulator || {
+        enabled: true,
+        levelPct: 8,
+        oilLayerPct: 6,
+        inletQuality: 1,
+        oilReturnActive: true,
+        isOverflowing: false,
+        isProtecting: false
+      };
+      const vis = this.vis || p;
+
+      // Cavity bounds: x=479..537 (w=58), y=291..401 (h=110), rx=14
+      const x0 = 479;
+      const y0 = 291;
+      const w = 58;
+      const h = 110;
+      const yBottom = y0 + h;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(x0, y0, w, h, 14);
+      ctx.clip();
+
+      if (!acc.enabled) {
+        // Bypassed state: ghosted interior + dashed bypass stream
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.fillRect(x0, y0, w, h);
+
+        ctx.strokeStyle = 'rgba(100, 116, 139, 0.25)';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(510, 312);
+        ctx.lineTo(510, 384);
+        ctx.quadraticCurveTo(510, 396, 518, 396);
+        ctx.quadraticCurveTo(526, 396, 526, 384);
+        ctx.lineTo(526, 291);
+        ctx.stroke();
+
+        ctx.strokeStyle = p.isFloodback ? '#06b6d4' : '#3b82f6';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 4]);
+        ctx.lineDashOffset = -this.animTime * 28;
+        ctx.beginPath();
+        ctx.moveTo(494, 291);
+        ctx.quadraticCurveTo(494, 324, 510, 324);
+        ctx.quadraticCurveTo(526, 324, 526, 291);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        if (this.labelMode !== 'quiz') {
+          ctx.fillStyle = 'rgba(148, 163, 184, 0.9)';
+          ctx.font = '800 8px system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('BYPASSED', x0 + w * 0.5, y0 + h * 0.62);
+        }
+        ctx.restore();
+        return;
+      }
+
+      // 1. Upper vapor headspace tint
+      ctx.fillStyle = this.colorMode === 'thermal'
+        ? mixWithBg(tempToIRColor(vis.suctionTempF), '#090f1d', 0.22)
+        : 'rgba(59, 130, 246, 0.12)';
+      ctx.fillRect(x0, y0, w, h);
+
+      // 2. Animated liquid refrigerant pool & golden bottom oil layer
+      const lvl = clamp(vis.accumLevelPct ?? acc.levelPct, 4, 96);
+      const poolH = (lvl / 100) * 102;
+      const ySurf = yBottom - poolH;
+      const oilH = Math.min(poolH, 7.5);
+      const yOilTop = yBottom - oilH;
+
+      if (poolH > oilH + 0.5) {
+        const liqTopColor = this.colorMode === 'thermal'
+          ? mixWithBg(tempToIRColor(vis.lowSatDewF), '#090f1d', 0.72)
+          : 'rgba(34, 211, 238, 0.68)';
+        const liqBotColor = this.colorMode === 'thermal'
+          ? mixWithBg(tempToIRColor(vis.lowSatDewF), '#090f1d', 0.88)
+          : 'rgba(14, 116, 144, 0.88)';
+        const liqGrad = ctx.createLinearGradient(0, ySurf, 0, yOilTop);
+        liqGrad.addColorStop(0, liqTopColor);
+        liqGrad.addColorStop(1, liqBotColor);
+
+        ctx.fillStyle = liqGrad;
+        ctx.beginPath();
+        ctx.moveTo(x0, yOilTop + 1);
+        for (let x = x0; x <= x0 + w; x += 4) {
+          const wave = Math.sin(this.animTime * 4.4 + x * 0.22) * 1.5;
+          ctx.lineTo(x, ySurf + wave);
+        }
+        ctx.lineTo(x0 + w, yOilTop + 1);
+        ctx.closePath();
+        ctx.fill();
+
+        // Crisp meniscus highlight
+        ctx.strokeStyle = 'rgba(165, 243, 252, 0.75)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        for (let x = x0; x <= x0 + w; x += 4) {
+          const wave = Math.sin(this.animTime * 4.4 + x * 0.22) * 1.5;
+          if (x === x0) ctx.moveTo(x, ySurf + wave);
+          else ctx.lineTo(x, ySurf + wave);
+        }
+        ctx.stroke();
+      }
+
+      // Bottom oil layer
+      const oilGrad = ctx.createLinearGradient(0, yOilTop, 0, yBottom);
+      oilGrad.addColorStop(0, 'rgba(245, 158, 11, 0.82)');
+      oilGrad.addColorStop(1, 'rgba(146, 64, 14, 0.96)');
+      ctx.fillStyle = oilGrad;
+      ctx.fillRect(x0, yOilTop, w, oilH + 1);
+
+      // 3. Rising boil-off vapor bubbles inside trapped liquid pool
+      if (poolH > 14) {
+        const bubbleCount = Math.min(this.accumBubbles.length, Math.ceil((poolH / 90) * this.accumBubbles.length));
+        ctx.fillStyle = 'rgba(224, 242, 254, 0.75)';
+        for (let i = 0; i < bubbleCount; i++) {
+          const b = this.accumBubbles[i];
+          b.y = (b.y + dt * b.speed) % 1;
+          const bx = x0 + 5 + b.xFrac * (w - 10);
+          const by = yOilTop - 2 - b.y * Math.max(4, yOilTop - ySurf - 4);
+          if (by <= ySurf + 2) continue;
+          ctx.globalAlpha = Math.sin(Math.PI * b.y) * 0.75;
+          ctx.beginPath();
+          ctx.arc(bx, by, b.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // 4. Inlet deflector baffle under top-left inlet port (494, 291)
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 2.6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(483, 300);
+      ctx.lineTo(503, 307);
+      ctx.stroke();
+
+      // Falling liquid droplets deflected down from inlet baffle
+      if (acc.inletQuality < 0.996 || acc.isProtecting || acc.isOverflowing) {
+        const fallDist = Math.max(8, ySurf - 304);
+        const dropCount = acc.isOverflowing ? 14 : acc.inletQuality < 0.996 ? 10 : 5;
+        ctx.fillStyle = '#22d3ee';
+        for (let i = 0; i < dropCount; i++) {
+          const d = this.accumDrops[i];
+          d.y = (d.y + dt * d.speed) % 1;
+          const dx = 491 + d.x * 0.65;
+          const dy = 304 + d.y * fallDist;
+          ctx.globalAlpha = Math.sin(Math.PI * d.y) * 0.88;
+          ctx.beginPath();
+          ctx.ellipse(dx, dy, d.r * 0.72, d.r * 1.15, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // 5. Internal J/U-Tube standpipe (flared vapor mouth high at y=312)
+      const traceUTube = () => {
+        ctx.beginPath();
+        ctx.moveTo(510, 312);
+        ctx.lineTo(510, 384);
+        ctx.quadraticCurveTo(510, 396, 518, 396);
+        ctx.quadraticCurveTo(526, 396, 526, 384);
+        ctx.lineTo(526, 290);
+      };
+
+      // Outer metallic wall
+      ctx.lineCap = 'butt';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 8;
+      traceUTube();
+      ctx.stroke();
+
+      // Dark inner bore
+      ctx.strokeStyle = '#0b1324';
+      ctx.lineWidth = 4.6;
+      traceUTube();
+      ctx.stroke();
+
+      // Fluid column inside U-tube (dry vapor blue, or cyan liquid slugging if overflowing)
+      ctx.strokeStyle = acc.isOverflowing
+        ? 'rgba(6, 182, 212, 0.82)'
+        : 'rgba(59, 130, 246, 0.55)';
+      ctx.lineWidth = 3.2;
+      traceUTube();
+      ctx.stroke();
+
+      // Flared bellmouth vapor intake rim at (510, 312)
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(504.5, 309);
+      ctx.lineTo(510, 313);
+      ctx.lineTo(515.5, 309);
+      ctx.stroke();
+
+      // Dry vapor flow lines curving over headspace into U-tube mouth (or liquid spillover!)
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([4, 4]);
+      ctx.lineDashOffset = -this.animTime * 24;
+      ctx.strokeStyle = acc.isOverflowing ? '#22d3ee' : '#93c5fd';
+      ctx.beginPath();
+      ctx.moveTo(497, 297);
+      ctx.quadraticCurveTo(510, 297, 510, 311);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 6. Oil-return bleed orifice + mesh screen at bottom of U-bend (518, 396)
+      ctx.fillStyle = '#fbbf24';
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(518, 396, 2.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#090f1d';
+      ctx.beginPath();
+      ctx.arc(518, 396, 1.0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Metered golden oil droplets rising up the right leg of the U-tube
+      if (acc.oilReturnActive) {
+        ctx.fillStyle = '#fbbf24';
+        for (const od of this.accumOilDrops) {
+          od.t = (od.t + dt * od.speed) % 1;
+          const ox = od.t < 0.14 ? RefDB.lerp(518, 526, od.t / 0.14) : 526;
+          const oy = od.t < 0.14 ? RefDB.lerp(395, 384, od.t / 0.14) : RefDB.lerp(384, 292, (od.t - 0.14) / 0.86);
+          ctx.globalAlpha = Math.sin(Math.PI * od.t) * 0.92;
+          ctx.beginPath();
+          ctx.arc(ox, oy, 1.35, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // 7. Compact fill percentage readout inside top-right corner (hidden in Quiz mode)
+      if (this.labelMode !== 'quiz') {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+        ctx.beginPath();
+        ctx.roundRect(482, 378, 25, 13, 3);
+        ctx.fill();
+        ctx.fillStyle = acc.isOverflowing ? '#fca5a5' : acc.isProtecting ? '#67e8f9' : '#e2e8f0';
+        ctx.font = '800 8px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${Math.round(lvl)}%`, 494.5, 387.5);
+      }
+
       ctx.restore();
     }
 

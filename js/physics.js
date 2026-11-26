@@ -167,6 +167,7 @@
     const metering = params.metering || 'txv';
     const stageSpeed = RefDB.clamp(params.compressorSpeed ?? 1.0, 0.4, 1.2);
     const fault = params.fault || 'none';
+    const accumulatorEnabled = params.accumulatorEnabled !== false;
 
     let indoorDB = RefDB.clamp(params.indoorDB ?? 75, 50, 95);
     let indoorRH = RefDB.clamp(params.indoorRH ?? 50, 15, 85);
@@ -527,6 +528,7 @@
 
       // Iteratively converge suction superheat / floodback quality & compressor mass flow
       let sh = prevSH ?? controllerTargetSH;
+      let inletSH = sh;
       let suctionState = R.vaporAtPT(fid, P_low_psia, stEvap.tDewF + Math.max(0.5, sh));
       let compRes = null;
       let mDot_comp = nomMassFlowLbMin;
@@ -586,16 +588,25 @@
         }
 
         let nextSH;
+        let rawNextSH;
         if (bulbUnstrapped) {
           nextSH = 0.0;
+          rawNextSH = 0.0;
         } else if (metering === 'txv' || metering === 'eev') {
           if (!isStarved) {
-            const airStarveDrop = evapAirFactorCur < 0.72 ? (0.72 - evapAirFactorCur) * 14 : 0;
-            nextSH = RefDB.clamp(controllerTargetSH - airStarveDrop, 3.5, 14.0);
+            const dropGain = accumulatorEnabled ? 14 : 24;
+            const minTxvSh = accumulatorEnabled ? 3.5 : 1.0;
+            const airStarveDrop = evapAirFactorCur < 0.72 ? (0.72 - evapAirFactorCur) * dropGain : 0;
+            nextSH = RefDB.clamp(controllerTargetSH - airStarveDrop, minTxvSh, 14.0);
+            rawNextSH =
+              accumulatorEnabled && evapAirFactorCur < 0.72
+                ? RefDB.clamp(controllerTargetSH - (0.72 - evapAirFactorCur) * 24, 1.0, 14.0)
+                : nextSH;
           } else {
             const starveRatio = Math.max(0, 1.0 - mDot_valve / Math.max(0.2, modeNomMassFlowLbMin));
             const maxPossibleSH = Math.max(controllerTargetSH, evapAir.db - tEvap - 6);
             nextSH = RefDB.clamp(controllerTargetSH + starveRatio * 68.0, controllerTargetSH, maxPossibleSH);
+            rawNextSH = nextSH;
           }
         } else {
           const flowRatio = mDot_valve / Math.max(0.2, mDot_comp);
@@ -606,6 +617,7 @@
             (evapAir.db - nomEvapAirDB) * (mode === 'cooling' ? 0.22 : 0.10) +
             (evapAirFactorCur - 1.0) * 18.0;
           const normalHeatAccumulator =
+            accumulatorEnabled &&
             mode === 'heating' &&
             !bulbUnstrapped &&
             chargePct <= 105 &&
@@ -617,9 +629,15 @@
           const flowTerm = flowRatio > 1.0 ? (1.0 - flowRatio) * overfeedGain : (1.0 - flowRatio) * 44.0;
           const maxPossibleSH = Math.max(12, evapAir.db - tEvap - 4);
           const minSH = normalHeatAccumulator ? 5.0 : 0.0;
+          rawNextSH = RefDB.clamp(
+            controllerTargetSH + loadBias + starveBonus + (1.0 - flowRatio) * 44.0,
+            0.0,
+            maxPossibleSH
+          );
           nextSH = RefDB.clamp(controllerTargetSH + loadBias + starveBonus + flowTerm, minSH, maxPossibleSH);
         }
         sh = 0.5 * sh + 0.5 * nextSH;
+        inletSH = 0.5 * inletSH + 0.5 * rawNextSH;
       }
 
       // Final suction state after SH convergence
@@ -748,6 +766,7 @@
         r_p,
         sc,
         sh,
+        inletSH,
         suctionQuality,
         tLiq,
         P_postDrier_ref_psig,
@@ -835,6 +854,7 @@
       r_p,
       sc,
       sh,
+      inletSH,
       suctionQuality,
       tLiq,
       P_postDrier_ref_psig,
@@ -896,6 +916,80 @@
     const dischOverheatLimitF = ref.dischWarnF || (refId === 'R32' ? 235 : 215);
     const isOverheating = tDisch > dischOverheatLimitF || motorWindingTemp > 210;
     const isFloodback = sh <= 1.5 || suctionQuality < 0.995;
+
+    const accOilLayerPct = accumulatorEnabled ? 6.0 : 0.0;
+    const inletWetness = !accumulatorEnabled
+      ? (isFloodback ? RefDB.clamp(1.0 - suctionQuality, 0.02, 0.12) : 0.0)
+      : bulbUnstrapped
+        ? 0.08
+        : isFloodback
+          ? Math.max(0.05, 1.0 - suctionQuality)
+          : inletSH < 4.0
+            ? RefDB.clamp((4.0 - inletSH) / 55.0, 0.0, 0.06)
+            : 0.0;
+    const inletQuality = RefDB.clamp(1.0 - inletWetness, 0.88, 1.0);
+
+    let accumLevelPct = 0.0;
+    let accumStatus = 'bypassed';
+    let accumStatusLabel = 'Bypassed (No Liquid Protection)';
+    let accumIsOverflowing = false;
+    let accumIsProtecting = false;
+
+    if (accumulatorEnabled) {
+      const heatReservePct = mode === 'heating'
+        ? RefDB.clamp(14 + Math.max(0, 48 - outdoorDB) * 0.65 + Math.max(0, chargePct - 100) * 0.4, 12, 42)
+        : 0;
+      const lowShCatchPct = sh < 7.0 ? RefDB.clamp((7.0 - sh) * 8.5, 0, 52) : 0;
+      const inletCatchPct = inletSH < sh - 0.5 ? RefDB.clamp((sh - inletSH) * 5.0, 0, 38) : 0;
+      const chargeReservePct = chargePct > 102 ? RefDB.clamp((chargePct - 102) * 1.1, 0, 28) : 0;
+
+      if (isFloodback) {
+        accumLevelPct = RefDB.clamp(89 + (1.5 - Math.min(1.5, sh)) * 4.5, 89, 96);
+        accumStatus = 'overflow';
+        accumStatusLabel = 'OVERFLOW — Liquid Spilling Into U-Tube!';
+        accumIsOverflowing = true;
+        accumIsProtecting = false;
+      } else {
+        accumLevelPct = RefDB.clamp(
+          accOilLayerPct + heatReservePct + lowShCatchPct + inletCatchPct + chargeReservePct,
+          6,
+          76
+        );
+        if (inletWetness > 0.005 || lowShCatchPct > 14 || accumLevelPct >= 34) {
+          accumStatus = 'trapping';
+          accumStatusLabel = 'Actively Trapping Liquid (Compressor Protected)';
+          accumIsProtecting = true;
+        } else if (mode === 'heating' || accumLevelPct >= 14) {
+          accumStatus = 'holding';
+          accumStatusLabel = 'Holding Charge Reserve & Metering Oil';
+          accumIsProtecting = mode === 'heating';
+        } else {
+          accumStatus = 'standby';
+          accumStatusLabel = 'Standby (Dry Vapor + Oil Bleed Return)';
+          accumIsProtecting = false;
+        }
+      }
+    }
+
+    const trappedLiquidLbMin = accumulatorEnabled && !accumIsOverflowing
+      ? activeFlow * inletWetness
+      : 0.0;
+
+    const accumulator = {
+      enabled: accumulatorEnabled,
+      status: accumStatus,
+      statusLabel: accumStatusLabel,
+      levelPct: accumLevelPct,
+      oilLayerPct: accOilLayerPct,
+      inletQuality,
+      outletQuality: suctionQuality,
+      inletSuperheatF: inletSH,
+      outletSuperheatF: sh,
+      trappedLiquidLbMin,
+      oilReturnActive: accumulatorEnabled && activeFlow > 0.1,
+      isOverflowing: accumIsOverflowing,
+      isProtecting: accumIsProtecting
+    };
 
     // Fan Affinity Laws via Lib.FanLaws.scaleFanAffinity
     const indoorFan = Lib.FanLaws.scaleFanAffinity(
@@ -993,6 +1087,27 @@
         description: isFloodback
           ? `Danger! Liquid droplets (${((1 - suctionQuality) * 100).toFixed(1)}% wet) are escaping the evaporator and entering the suction line toward the compressor!`
           : `Cool, low-pressure vapor carries absorbed heat back to the compressor. Superheat is ${sh.toFixed(1)}°F above dew point (${stEvap.tDewF.toFixed(1)}°F), guaranteeing 100% vapor.`
+      },
+      accumulator: {
+        id: 'accumulator',
+        title: '1b. Suction-Line Accumulator (Liquid Catch Tank)',
+        short: 'Accumulator',
+        P_psig: P_low_psig,
+        P_psia: P_low_psia,
+        T: tSuct,
+        T_sat: stEvap.tDewF,
+        phase: `${accumStatusLabel} (${Math.round(accumLevelPct)}% full)`,
+        quality: suctionQuality,
+        h: h1,
+        rho: rhoSuct,
+        levelPct: accumLevelPct,
+        description: !accumulatorEnabled
+          ? 'BYPASSED: Suction gas routes straight into the compressor with no liquid catch tank. In cold-weather Heat Pump mode or low-load swings, wet carryover can reach the compressor.'
+          : accumIsOverflowing
+            ? `OVERFLOW ALERT! Incoming wet refrigerant has filled the tank to ${Math.round(accumLevelPct)}%—above the internal U-tube standpipe mouth—spilling liquid droplets directly into the compressor suction port!`
+            : accumIsProtecting
+              ? `PROTECTING COMPRESSOR: The inlet baffle deflects incoming wet carryover (${(inletQuality * 100).toFixed(1)}% vapor) down into the ${Math.round(accumLevelPct)}% sump pool. The high U-tube standpipe draws 100% dry vapor (${sh.toFixed(1)}°F SH) while the bottom bleed orifice meters oil & trapped liquid back as safe mist.`
+              : `HOLDING & OIL RETURN: Tank holds ${Math.round(accumLevelPct)}% reserve/oil sump safely below the U-tube standpipe mouth. Dry vapor enters the top of the U-tube while the screened bottom bleed orifice continuously returns compressor oil.`
       },
       compressor: {
         id: 'compressor',
@@ -1139,7 +1254,8 @@
         outdoorRH,
         condAirflowPct,
         chargePct,
-        stageSpeed
+        stageSpeed,
+        accumulatorEnabled
       },
       gauges: {
         lowPsig: P_low_psig,
@@ -1189,6 +1305,7 @@
         motorWindingTemp,
         isOverheating,
         isFloodback,
+        accumulator,
         valveOpenPct,
         wetCoilFrac,
         desupFrac,

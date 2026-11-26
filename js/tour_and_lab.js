@@ -13,7 +13,7 @@
     {
       id: 'compressor',
       nodeId: 'compressor',
-      badge: 'Stage 1 of 5',
+      badge: 'Stage 1 of 6',
       title: 'The Hermetic Scroll Compressor (Vapor Pump)',
       summary:
         'Draws in cool, low-pressure superheated vapor (Point 1) and mechanically squeezes it into hot, high-pressure superheated vapor (Point 2).',
@@ -27,7 +27,7 @@
     {
       id: 'condenser',
       nodeId: 'condenser',
-      badge: 'Stage 2 of 5',
+      badge: 'Stage 2 of 6',
       title: 'The Condenser Coil (3-Zone Heat Rejection)',
       summary:
         'Because high pressure raises the refrigerant’s boiling/condensing temperature above outdoor air, heat flows naturally OUT of the coil.',
@@ -41,7 +41,7 @@
     {
       id: 'metering',
       nodeId: 'metering_device',
-      badge: 'Stage 3 of 5',
+      badge: 'Stage 3 of 6',
       title: 'Filter-Drier, Sight Glass & Metering Device',
       summary:
         'Creates a sharp pressure drop from High-Side to Low-Side at constant enthalpy, spraying cold liquid + flash gas into the evaporator.',
@@ -55,7 +55,7 @@
     {
       id: 'evaporator',
       nodeId: 'evaporator',
-      badge: 'Stage 4 of 5',
+      badge: 'Stage 4 of 6',
       title: 'The Evaporator Coil (Latent Boiling & Superheat)',
       summary:
         'Low pressure drops the refrigerant’s boiling point (~40°F) below indoor air (~75°F), pulling sensible and latent heat out of the airstream.',
@@ -67,9 +67,23 @@
       watchFor: 'When coil temp drops below air Dew Point, water drips into the drain pan. Below 32°F, frost builds on the fins!'
     },
     {
+      id: 'accumulator',
+      nodeId: 'accumulator',
+      badge: 'Stage 5 of 6',
+      title: 'Suction-Line Accumulator (Liquid Trap & Oil Return)',
+      summary:
+        'Sits ahead of the compressor suction port to catch liquid carryover (especially in Heat Pump Heating mode) so only dry vapor reaches the scroll.',
+      keyPoints: [
+        'Inlet Deflector Baffle: Redirects incoming liquid droplets downward into the tank sump instead of straight down the outlet tube.',
+        'High U-Tube Standpipe: Draws 100% dry vapor from the top headspace while trapped liquid boils off safely below.',
+        'Screened Bottom Oil Bleed Orifice: Continuously meters trapped compressor oil (and tiny amounts of liquid) back up the U-tube as a safe mist.'
+      ],
+      watchFor: 'Switch to Heat Pump Heating + Fixed Orifice, then toggle the Suction-Line Accumulator OFF vs ON to see liquid floodback protection in action!'
+    },
+    {
       id: 'balance',
       nodeId: 'suction_line',
-      badge: 'Stage 5 of 5',
+      badge: 'Stage 6 of 6',
       title: 'First Law Energy Balance & Diagnostic Mastery',
       summary:
         'Energy cannot be created or destroyed: Every BTU absorbed indoors PLUS compressor work MUST be rejected outdoors.',

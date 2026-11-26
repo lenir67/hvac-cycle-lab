@@ -192,7 +192,7 @@ assert(fNonCond.gauges.highPsig > base.gauges.highPsig + 50 && fNonCond.gauges.s
 assert(fNonCond.gauges.highPsig - fNonCond.gauges.highRefPsig > 50, 'Non-Condensables separates P_gauge from P_ref');
 
 console.log('5. Testing Lab Tour, Formula Substitution & diagnoseSystemFaults Hints...');
-assert(Lab.TOUR_STEPS.length === 5, '5 guided tour steps');
+assert(Lab.TOUR_STEPS.length === 6 && Lab.TOUR_STEPS.some((s) => s.id === 'accumulator'), '6 guided tour steps including accumulator');
 const formulas = Lab.buildFormulaCards(base);
 assert(formulas.length === 6 && formulas.every((c) => c.calc && !c.calc.includes('NaN')), 'Valid live formula cards');
 const co2Formulas = Lab.buildFormulaCards(r744Cool);
@@ -201,5 +201,56 @@ const hints = Lab.getDiagnosticHints(fUnder);
 assert(Array.isArray(hints) && hints.length >= 5 && hints[0].verificationHint, 'diagnoseSystemFaults hints available');
 const diagEval = Lab.evaluateDiagnosis('undercharge', 'undercharge', fUnder, Physics.FAULTS);
 assert(diagEval.isCorrect && diagEval.evidence.some((e) => e.includes('Field Verification Hint:')), 'Diagnosis feedback includes field verification hint');
+
+console.log('6. Testing Suction-Line Accumulator Function (Standby, Protection, Bypass, Overflow)...');
+assert(base.nodes.accumulator && base.performance.accumulator, 'Accumulator node and telemetry exist');
+assert(
+  base.performance.accumulator.enabled === true &&
+  base.performance.accumulator.status === 'standby' &&
+  base.performance.accumulator.levelPct <= 15 &&
+  base.performance.accumulator.isOverflowing === false &&
+  base.performance.accumulator.oilReturnActive === true,
+  `Normal cooling accumulator expected standby, got ${JSON.stringify(base.performance.accumulator)}`
+);
+
+const heatFxoProtected = Physics.solveCycle({
+  refrigerant: 'R410A',
+  mode: 'heating',
+  metering: 'fxo',
+  fault: 'none',
+  outdoorDB: 15,
+  indoorDB: 70,
+  accumulatorEnabled: true
+});
+assert(
+  !heatFxoProtected.performance.isFloodback &&
+  heatFxoProtected.performance.accumulator.levelPct >= 25 &&
+  heatFxoProtected.performance.accumulator.isProtecting === true,
+  `Cold heating FXO with accumulator ON must protect compressor (SH=${heatFxoProtected.gauges.superheatF}, acc=${JSON.stringify(heatFxoProtected.performance.accumulator)})`
+);
+
+const heatFxoBypassed = Physics.solveCycle({
+  refrigerant: 'R410A',
+  mode: 'heating',
+  metering: 'fxo',
+  fault: 'none',
+  outdoorDB: 15,
+  indoorDB: 70,
+  accumulatorEnabled: false
+});
+assert(
+  heatFxoBypassed.performance.isFloodback === true &&
+  heatFxoBypassed.performance.accumulator.status === 'bypassed' &&
+  heatFxoBypassed.performance.accumulator.levelPct === 0,
+  `Cold heating FXO with accumulator bypassed must expose compressor to floodback (SH=${heatFxoBypassed.gauges.superheatF})`
+);
+
+assert(
+  fBulb.performance.accumulator.isOverflowing === true &&
+  fBulb.performance.accumulator.status === 'overflow' &&
+  fBulb.performance.accumulator.levelPct >= 85 &&
+  fBulb.performance.isFloodback === true,
+  `Severe TXV unstrapped floodback must overflow accumulator (${JSON.stringify(fBulb.performance.accumulator)})`
+);
 
 console.log('ALL PHYSICS & LAB ASSERTIONS PASSED!');
