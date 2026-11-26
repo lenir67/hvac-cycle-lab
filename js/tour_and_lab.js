@@ -1,11 +1,13 @@
 /**
  * Classroom Pedagogy Engine:
  * 1. 5-Step Guided Cycle Tour
- * 2. Mystery Fault Diagnostic Challenge (with live clue-based grading)
+ * 2. Mystery Fault Diagnostic Challenge (with live clue-based grading + HVACPhysicsLib.Controls.diagnoseSystemFaults hints)
  * 3. Live-Substituted Thermodynamic Formulas & Rules of Thumb
  */
 (function (global) {
   'use strict';
+
+  const Lib = global.HVACPhysicsLib;
 
   const TOUR_STEPS = [
     {
@@ -91,6 +93,29 @@
     'non_condensables'
   ];
 
+  function getDiagnosticHints(state) {
+    if (!Lib || !Lib.Controls || !Lib.Controls.diagnoseSystemFaults || !state) {
+      return [];
+    }
+    const g = state.gauges;
+    const p = state.performance;
+    const isCooling = state.mode === 'cooling';
+    const expectedEvapSat = isCooling ? 40.0 : (p.evapAir ? p.evapAir.db - 15.0 : 25.0);
+    const expectedCondSat = isCooling ? (p.condAir ? p.condAir.db + 17.0 : 112.0) : 105.0;
+    const obs = {
+      superheatF: g.superheatF,
+      targetSuperheatF: g.targetSH,
+      subcoolingF: g.subcoolingF,
+      targetSubcoolingF: g.targetSC,
+      suctionSatDeltaF: g.lowSatDewF - expectedEvapSat,
+      dischargeSatDeltaF: g.highSatBubF - expectedCondSat,
+      evapAirDeltaTF: p.indoorDeltaT,
+      ampDrawRatio: p.compAmps / Math.max(1.0, p.nominalCompAmps || p.compAmps),
+      isTxv: state.metering === 'txv' || state.metering === 'eev'
+    };
+    return Lib.Controls.diagnoseSystemFaults(obs);
+  }
+
   function buildFormulaCards(state) {
     const g = state.gauges;
     const p = state.performance;
@@ -105,10 +130,14 @@
         meaning: `Target ~${g.targetSH.toFixed(0)}°F. Protects compressor from liquid slugging while maximizing wet coil usage.`
       },
       {
-        name: 'Subcooling (Liquid Line)',
-        formula: 'SC = T_cond_sat (Bubble) − T_liquid',
-        calc: `${g.highSatBubF.toFixed(1)}°F − ${g.liquidTempF.toFixed(1)}°F = <strong>${g.subcoolingF.toFixed(1)}°F</strong>`,
-        meaning: `Target ~${g.targetSC.toFixed(0)}°F. Ensures 100% solid liquid reaches the metering valve without flash gas.`
+        name: state.isTranscritical ? 'Gas Cooler Approach (Transcritical CO₂)' : 'Subcooling (Liquid Line)',
+        formula: state.isTranscritical ? 'Approach = T_gc_out − T_air_in' : 'SC = T_cond_sat (Bubble) − T_liquid',
+        calc: state.isTranscritical
+          ? `${g.liquidTempF.toFixed(1)}°F − ${p.condAir.db.toFixed(1)}°F = <strong>${(g.liquidTempF - p.condAir.db).toFixed(1)}°F</strong>`
+          : `${g.highSatBubF.toFixed(1)}°F − ${g.liquidTempF.toFixed(1)}°F = <strong>${g.subcoolingF.toFixed(1)}°F</strong>`,
+        meaning: state.isTranscritical
+          ? 'Above 87.8°F critical temp, CO₂ cools sensibly without condensing; high-side pressure is optimized for COP.'
+          : `Target ~${g.targetSC.toFixed(0)}°F. Ensures 100% solid liquid reaches the metering valve without flash gas.`
       },
       {
         name: 'Flash Gas Fraction (After Expansion)',
@@ -143,6 +172,8 @@
     const isCorrect = guessFaultId === actualFaultId;
     const g = state.gauges;
     const p = state.performance;
+    const hints = getDiagnosticHints(state);
+    const topHint = hints[0];
 
     const evidence = [
       `Low Side: ${global.HVACRef.formatPressure(g.lowPsig)} (Sat ${g.lowSatDewF.toFixed(1)}°F) • Superheat: ${g.superheatF.toFixed(1)}°F`,
@@ -150,17 +181,23 @@
       `Sight Glass Bubbles: ${(p.sightGlassBubbles * 100).toFixed(0)}% • Indoor ΔT: ${p.indoorDeltaT.toFixed(1)}°F • Amps: ${p.compAmps.toFixed(1)}A`
     ];
 
+    if (topHint && topHint.verificationHint) {
+      evidence.push(`Field Verification Hint: ${topHint.verificationHint}`);
+    }
+
     return {
       isCorrect,
       actual,
       guess,
-      evidence
+      evidence,
+      hints
     };
   }
 
   global.HVACLab = {
     TOUR_STEPS,
     MYSTERY_POOL,
+    getDiagnosticHints,
     buildFormulaCards,
     evaluateDiagnosis
   };

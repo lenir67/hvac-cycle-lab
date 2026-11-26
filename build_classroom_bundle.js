@@ -12,6 +12,7 @@ const child_process = require('child_process');
 const ROOT = __dirname;
 const OUTPUT_FILE = path.join(ROOT, 'HVAC_Refrigerant_Cycle_Lab.html');
 const SCRIPT_FILES = [
+  'js/vendor/hvac-physics.hub.bundle.js',
   'js/refrigerants.js',
   'js/physics.js',
   'js/ph_diagram.js',
@@ -41,7 +42,7 @@ function buildBundle() {
 
   const targetBlock = bundled.includes(altScriptTagsBlock) ? altScriptTagsBlock : scriptTagsBlock;
   if (!bundled.includes(targetBlock)) {
-    throw new Error('Expected 6 defer script tags block not found in index.html');
+    throw new Error(`Expected ${SCRIPT_FILES.length} defer script tags block not found in index.html`);
   }
 
   const inlineScripts = SCRIPT_FILES.map((relPath) => {

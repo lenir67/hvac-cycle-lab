@@ -1,12 +1,13 @@
 /**
  * Interactive Pressure-Enthalpy (P-H) Mollier Diagram Renderer
- * Plots real refrigerant saturation dome, constant quality lines, isotherms,
- * and the live 1-2-3-4 vapor-compression cycle with Flash Gas & NRE readouts.
+ * Backed by HVACPhysicsLib.Refrigerants for true quality contours, curved isotherms,
+ * polytropic compression curve (1->2), drier/expansion step (3->3b->4), and CO2 transcritical support.
  */
 (function (global) {
   'use strict';
 
   const RefDB = global.HVACRef;
+  const Lib = global.HVACPhysicsLib;
   const NODE_MAP = {
     p1: 'suction_line',
     p2: 'discharge_line',
@@ -139,7 +140,9 @@
       const plotH = Math.max(100, cssH - pad.t - pad.b);
 
       const ref = this.state.ref;
+      const fid = ref.fid;
       const ph = this.state.phPoints;
+      const p3bSrc = ph.p3b || ph.p3;
       const dome = RefDB.getSaturationDome(ref.id);
       const damp = 1 - Math.exp(-10 * Math.max(0.004, dt));
 
@@ -149,6 +152,7 @@
           p1: { h: ph.p1.h, P_psia: ph.p1.P_psia },
           p2: { h: ph.p2.h, P_psia: ph.p2.P_psia },
           p3: { h: ph.p3.h, P_psia: ph.p3.P_psia },
+          p3b: { h: p3bSrc.h, P_psia: p3bSrc.P_psia },
           p4: { h: ph.p4.h, P_psia: ph.p4.P_psia },
           nre: ph.nre,
           flashGasQuality: this.state.performance.flashGasQuality
@@ -158,18 +162,24 @@
           this.smoothPh[key].h += (ph[key].h - this.smoothPh[key].h) * damp;
           this.smoothPh[key].P_psia += (ph[key].P_psia - this.smoothPh[key].P_psia) * damp;
         }
+        this.smoothPh.p3b.h += (p3bSrc.h - this.smoothPh.p3b.h) * damp;
+        this.smoothPh.p3b.P_psia += (p3bSrc.P_psia - this.smoothPh.p3b.P_psia) * damp;
         this.smoothPh.nre += (ph.nre - this.smoothPh.nre) * damp;
         this.smoothPh.flashGasQuality += (this.state.performance.flashGasQuality - this.smoothPh.flashGasQuality) * damp;
       }
       const visPh = this.smoothPh;
 
-      // Axis domains tailored cleanly to current refrigerant
-      const hMin = -10;
-      const targetHMax = Math.max(165, Math.ceil((Math.max(ph.p2.h, visPh.p2.h) + 18) / 20) * 20);
+      // Axis domains tailored cleanly to current refrigerant (including R-290 high enthalpy & R-744 transcritical pressure)
+      const hMin = Math.min(-10, Math.floor((dome[0].hf - 10) / 10) * 10);
+      let domeMaxH = 150;
+      for (let i = 0; i < dome.length; i++) {
+        if (dome[i].hg > domeMaxH) domeMaxH = dome[i].hg;
+      }
+      const targetHMax = Math.max(165, Math.ceil((Math.max(ph.p2.h, visPh.p2.h, domeMaxH) + 20) / 20) * 20);
       this.visHMax = this.visHMax === null ? targetHMax : this.visHMax + (targetHMax - this.visHMax) * damp;
       const hMax = this.visHMax;
       const pMin = Math.max(4, Math.floor(dome[0].P_dew_psia * 0.75));
-      const pMax = Math.ceil(ref.Pc_psia * 1.12);
+      const pMax = Math.ceil(Math.max(ref.Pc_psia * 1.12, ph.p2.P_psia * 1.08, visPh.p2.P_psia * 1.08));
       const logPMin = Math.log10(pMin);
       const logPMax = Math.log10(pMax);
 
@@ -182,7 +192,9 @@
       // Grid lines (Enthalpy)
       ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
       ctx.lineWidth = 1;
-      for (let h = 0; h <= hMax; h += 25) {
+      const hStep = (hMax - hMin) > 250 ? 50 : 25;
+      const hStart = Math.ceil(hMin / hStep) * hStep;
+      for (let h = hStart; h <= hMax; h += hStep) {
         const x = xOf(h);
         ctx.strokeStyle = gridColor;
         ctx.beginPath();
@@ -195,8 +207,8 @@
         ctx.fillText(`${h}`, x, pad.t + plotH + 13);
       }
 
-      // Grid lines (Log Pressure in psia)
-      const pTicks = [10, 20, 40, 60, 100, 150, 200, 300, 400, 600, 800];
+      // Grid lines (Log Pressure in psia — extended dynamically up to 2000 psia for R-744)
+      const pTicks = [10, 20, 40, 60, 100, 150, 200, 300, 400, 600, 800, 1000, 1200, 1500, 2000];
       for (const p of pTicks) {
         if (p < pMin || p > pMax) continue;
         const y = yOf(p);
@@ -227,6 +239,12 @@
       ctx.fillText('Pressure (psia, log)', 0, 0);
       ctx.restore();
 
+      // Clip interior curves cleanly to plot box
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(pad.l, pad.t, plotW, plotH);
+      ctx.clip();
+
       // Draw Saturation Dome fill & curves
       ctx.beginPath();
       for (let i = 0; i < dome.length; i++) {
@@ -244,50 +262,58 @@
       ctx.fillStyle = domeFill;
       ctx.fill();
 
-      // Constant Quality Contours inside dome (20%, 40%, 60%, 80%)
+      // Constant Quality Contours inside dome (20%, 40%, 60%, 80%) via Lib.Refrigerants.stateAtPQ
       ctx.save();
       ctx.setLineDash([2, 3]);
       ctx.strokeStyle = isLight ? 'rgba(2, 132, 199, 0.25)' : 'rgba(56, 189, 248, 0.22)';
       ctx.lineWidth = 1;
+      const crit = dome[dome.length - 1];
       for (const q of [0.2, 0.4, 0.6, 0.8]) {
         ctx.beginPath();
-        for (let i = 0; i < dome.length; i++) {
-          const d = dome[i];
-          const hq = d.hf + q * (d.hg - d.hf);
-          const pq = d.P_bub_psia + q * (d.P_dew_psia - d.P_bub_psia);
-          const x = xOf(hq);
-          const y = yOf(pq);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+        let started = false;
+        for (let i = 0; i < dome.length - 1; i += 2) {
+          const stQ = Lib.Refrigerants.stateAtPQ(fid, dome[i].P_bub_psia, q);
+          const x = xOf(stQ.hBtuLb);
+          const y = yOf(stQ.pPsia);
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
         }
+        ctx.lineTo(xOf(crit.hf), yOf(crit.P_bub_psia));
         ctx.stroke();
       }
       ctx.restore();
 
-      // Constant Temperature Isotherms (40°F, 100°F) subtle reference
+      // True Curved Constant Temperature Isotherms via Lib.Refrigerants.getIsotherm
       ctx.save();
-      ctx.strokeStyle = isLight ? 'rgba(100,116,139,0.22)' : 'rgba(148,163,184,0.16)';
+      ctx.strokeStyle = isLight ? 'rgba(100,116,139,0.24)' : 'rgba(148,163,184,0.18)';
       ctx.lineWidth = 1;
-      for (const isoT of [40, 100]) {
-        const st = RefDB.lookupByTemp(ref.id, isoT);
-        const xL = xOf(st.hf);
-        const yL = yOf(st.P_bub_psia);
-        const xR = xOf(st.hg);
-        const yR = yOf(st.P_dew_psia);
+      const isoTemps = ref.hasSupercritical ? [40, 80, 100, 120] : [40, 100];
+      const pMinIso = Math.max(pMin, ref.meta ? ref.meta.pMinPsia : pMin);
+      const pMaxIso = Math.min(pMax, ref.hasSupercritical ? pMax : (ref.meta ? ref.meta.pMaxPsia : pMax));
+      for (const isoT of isoTemps) {
+        const ptsIso = Lib.Refrigerants.getIsotherm(fid, isoT, pMinIso, pMaxIso, 34);
+        if (!ptsIso || ptsIso.length < 2) continue;
         ctx.beginPath();
-        // Steep liquid subcool line
-        ctx.moveTo(xL - 3, pad.t + 6);
-        ctx.lineTo(xL, yL);
-        // Phase-change tie line (slanted slightly on blends!)
-        ctx.lineTo(xR, yR);
-        // Gentle downward superheat isotherm
-        ctx.lineTo(Math.min(pad.l + plotW - 4, xR + 28), Math.min(pad.t + plotH - 4, yR + 55));
+        for (let i = 0; i < ptsIso.length; i++) {
+          const x = xOf(ptsIso[i].hBtuLb);
+          const y = yOf(ptsIso[i].pPsia);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
         ctx.stroke();
 
+        // Label isotherm near its upper-right / vapor knee
+        const labelPt = ptsIso[Math.min(ptsIso.length - 1, Math.floor(ptsIso.length * 0.45))];
         ctx.fillStyle = axisText;
         ctx.font = '9px ui-monospace, monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(`${isoT}°F`, xL + 4, yL - 3);
+        const lx = Math.min(pad.l + plotW - 32, Math.max(pad.l + 4, xOf(labelPt.hBtuLb) + 3));
+        const ly = Math.max(pad.t + 12, Math.min(pad.t + plotH - 6, yOf(labelPt.pPsia) - 3));
+        ctx.fillText(`${isoT}°F`, lx, ly);
       }
       ctx.restore();
 
@@ -313,7 +339,6 @@
       ctx.stroke();
 
       // Critical Point Marker
-      const crit = dome[dome.length - 1];
       const critX = xOf(crit.hf);
       const critY = yOf(crit.P_bub_psia);
       ctx.fillStyle = domeStroke;
@@ -329,15 +354,46 @@
       const p1 = { x: xOf(visPh.p1.h), y: yOf(visPh.p1.P_psia), raw: ph.p1 };
       const p2 = { x: xOf(visPh.p2.h), y: yOf(visPh.p2.P_psia), raw: ph.p2 };
       const p3 = { x: xOf(visPh.p3.h), y: yOf(visPh.p3.P_psia), raw: ph.p3 };
+      const p3b = { x: xOf(visPh.p3b.h), y: yOf(visPh.p3b.P_psia), raw: p3bSrc };
       const p4 = { x: xOf(visPh.p4.h), y: yOf(visPh.p4.P_psia), raw: ph.p4 };
       this.screenPoints = { p1, p2, p3, p4 };
+
+      // Build curved 1 -> 2 thermodynamic compression path along constant-efficiency polytrope
+      const compCurvePts = [];
+      const compSteps = 14;
+      const pLowVal = Math.max(pMin, visPh.p1.P_psia);
+      const pHighVal = Math.max(pLowVal + 1, visPh.p2.P_psia);
+      const s1State = Lib.Refrigerants.stateAtPH(fid, pLowVal, visPh.p1.h);
+      const s2IsenState = Lib.Refrigerants.stateAtPS(fid, pHighVal, s1State.sBtuLbR);
+      const dhActualTotal = visPh.p2.h - visPh.p1.h;
+      const dhIsenTotal = s2IsenState.hBtuLb - visPh.p1.h;
+
+      for (let k = 0; k <= compSteps; k++) {
+        const frac = k / compSteps;
+        if (k === 0) {
+          compCurvePts.push({ x: p1.x, y: p1.y });
+        } else if (k === compSteps) {
+          compCurvePts.push({ x: p2.x, y: p2.y });
+        } else {
+          const pk = pLowVal * Math.pow(pHighVal / pLowVal, frac);
+          const sk = Lib.Refrigerants.stateAtPS(fid, pk, s1State.sBtuLbR);
+          const hk =
+            Math.abs(dhIsenTotal) > 0.5
+              ? visPh.p1.h + (sk.hBtuLb - visPh.p1.h) * (dhActualTotal / dhIsenTotal)
+              : visPh.p1.h + frac * dhActualTotal;
+          compCurvePts.push({ x: xOf(hk), y: yOf(pk) });
+        }
+      }
 
       // Subtle translucent cycle area fill
       ctx.fillStyle = isLight ? 'rgba(14, 165, 233, 0.05)' : 'rgba(56, 189, 248, 0.055)';
       ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
+      ctx.moveTo(compCurvePts[0].x, compCurvePts[0].y);
+      for (let k = 1; k < compCurvePts.length; k++) {
+        ctx.lineTo(compCurvePts[k].x, compCurvePts[k].y);
+      }
       ctx.lineTo(p3.x, p3.y);
+      ctx.lineTo(p3b.x, p3b.y);
       ctx.lineTo(p4.x, p4.y);
       ctx.closePath();
       ctx.fill();
@@ -345,7 +401,7 @@
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      // 1 -> 2 Compression (Red-Orange)
+      // 1 -> 2 Curved Compression (Blue -> Red-Orange)
       ctx.lineWidth = 2.8;
       const g12 = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
       g12.addColorStop(0, '#3b82f6');
@@ -353,11 +409,13 @@
       g12.addColorStop(1, '#ef4444');
       ctx.strokeStyle = g12;
       ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
+      ctx.moveTo(compCurvePts[0].x, compCurvePts[0].y);
+      for (let k = 1; k < compCurvePts.length; k++) {
+        ctx.lineTo(compCurvePts[k].x, compCurvePts[k].y);
+      }
       ctx.stroke();
 
-      // 2 -> 3 Condensing + Subcooling (Red -> Deep Magenta/Ruby)
+      // 2 -> 3 Condensing + Subcooling (or Transcritical Gas Cooling) (Red -> Deep Magenta/Ruby)
       const g23 = ctx.createLinearGradient(p2.x, p2.y, p3.x, p3.y);
       g23.addColorStop(0, '#ef4444');
       g23.addColorStop(0.75, '#f43f5e');
@@ -368,15 +426,32 @@
       ctx.lineTo(p3.x, p3.y);
       ctx.stroke();
 
-      // 3 -> 4 Isenthalpic Expansion (Magenta -> Cyan)
+      // 3 -> 3b -> 4 Drier Drop & Isenthalpic Expansion (Magenta -> Amber -> Cyan)
       const g34 = ctx.createLinearGradient(p3.x, p3.y, p4.x, p4.y);
       g34.addColorStop(0, '#db2777');
+      g34.addColorStop(0.5, '#f59e0b');
       g34.addColorStop(1, '#06b6d4');
       ctx.strokeStyle = g34;
       ctx.beginPath();
       ctx.moveTo(p3.x, p3.y);
+      ctx.lineTo(p3b.x, p3b.y);
       ctx.lineTo(p4.x, p4.y);
       ctx.stroke();
+
+      // Highlight 3b post-drier step when restriction ΔP is significant
+      if (this.state.gauges && this.state.gauges.drierDeltaP > 5) {
+        ctx.fillStyle = '#f59e0b';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(p3b.x, p3b.y, 3.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = '700 9px ui-monospace, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('3b (Drier)', p3b.x - 6, p3b.y + 3);
+      }
 
       // 4 -> 1 Evaporation + Superheating (Cyan -> Blue)
       const g41 = ctx.createLinearGradient(p4.x, p4.y, p1.x, p1.y);
@@ -410,35 +485,42 @@
       ctx.textAlign = 'right';
       ctx.fillText(`Flash ${fgPct}%`, p4.x - 6, p4.y + 3);
 
-      // Traveling animated cycle bead with smooth halo tail
-      const segs = [
-        [p1, p2],
+      // Traveling animated cycle bead following curved 1->2, 2->3, 3->3b->4, 4->1
+      const samplePoly = (pts, frac) => {
+        if (pts.length < 2) return pts[0] || p1;
+        const idxFloat = Math.max(0, Math.min(pts.length - 1, frac * (pts.length - 1)));
+        const i0 = Math.floor(idxFloat);
+        const i1 = Math.min(pts.length - 1, i0 + 1);
+        const f = idxFloat - i0;
+        return {
+          x: pts[i0].x + (pts[i1].x - pts[i0].x) * f,
+          y: pts[i0].y + (pts[i1].y - pts[i0].y) * f
+        };
+      };
+      const segPolys = [
+        compCurvePts,
         [p2, p3],
-        [p3, p4],
+        [p3, p3b, p4],
         [p4, p1]
       ];
       for (let tStep = 3; tStep >= 0; tStep--) {
         const tp = (((this.phasePulse - tStep * 0.045) % 4) + 4) % 4;
         const tIdx = Math.floor(tp) % 4;
         const tFrac = tp - Math.floor(tp);
-        const seg = segs[tIdx];
-        if (!seg) continue;
-        const [a, b] = seg;
-        const bx = a.x + (b.x - a.x) * tFrac;
-        const by = a.y + (b.y - a.y) * tFrac;
+        const pos = samplePoly(segPolys[tIdx], tFrac);
         if (tStep === 0) {
           ctx.fillStyle = 'rgba(56, 189, 248, 0.32)';
           ctx.beginPath();
-          ctx.arc(bx, by, 7.2, 0, Math.PI * 2);
+          ctx.arc(pos.x, pos.y, 7.2, 0, Math.PI * 2);
           ctx.fill();
           ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(bx, by, 3.6, 0, Math.PI * 2);
+          ctx.arc(pos.x, pos.y, 3.6, 0, Math.PI * 2);
           ctx.fill();
         } else {
           ctx.fillStyle = `rgba(125, 211, 252, ${(0.38 - tStep * 0.1).toFixed(2)})`;
           ctx.beginPath();
-          ctx.arc(bx, by, 3.1 - tStep * 0.55, 0, Math.PI * 2);
+          ctx.arc(pos.x, pos.y, 3.1 - tStep * 0.55, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -471,9 +553,15 @@
       ctx.fillStyle = titleText;
       ctx.font = '700 11px system-ui, sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText(`${ref.shortName} P-H Diagram`, pad.l + 6, pad.t + 14);
+      ctx.fillText(
+        this.state.isTranscritical ? `${ref.shortName} Transcritical P-H` : `${ref.shortName} P-H Diagram`,
+        pad.l + 6,
+        pad.t + 14
+      );
 
-      // Hover readout pill
+      ctx.restore(); // end plot clip
+
+      // Hover readout pill (outside clip so it renders cleanly at top)
       if (this.hoverIdx && this.screenPoints[this.hoverIdx]) {
         const pt = this.screenPoints[this.hoverIdx].raw;
         const txt = `Pt ${pt.label}: ${pt.name} • ${RefDB.formatPressure(pt.P_psig)} • ${pt.T.toFixed(1)}°F • h=${pt.h.toFixed(1)} BTU/lb`;

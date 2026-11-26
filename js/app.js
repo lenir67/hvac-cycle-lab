@@ -78,12 +78,20 @@
     const g = s.gauges;
     const p = s.performance;
 
-    // Low-side dial: -14.7 psig (-130 deg) to 300 psig (+130 deg)
-    const lowNorm = RefDB.clamp((g.lowPsig + 14.7) / 314.7, 0, 1);
+    // Low-side dial: -14.7 psig (-130 deg) to 300 psig (or 800 psig for R-744 CO2)
+    const isCO2 = s.ref.id === 'R744';
+    const lowMax = isCO2 ? 800 : 300;
+    const highMax = isCO2 ? 1800 : 650;
+    const lowDialMaxEl = document.getElementById('dial-low-max');
+    const highDialMaxEl = document.getElementById('dial-high-max');
+    if (lowDialMaxEl) lowDialMaxEl.textContent = `${lowMax}`;
+    if (highDialMaxEl) highDialMaxEl.textContent = `${highMax}`;
+
+    const lowNorm = RefDB.clamp((g.lowPsig + 14.7) / (lowMax + 14.7), 0, 1);
     needleTarget.low = -130 + lowNorm * 260;
 
-    // High-side dial: 0 psig (-130 deg) to 650 psig (+130 deg), smoothly damped in frame loop
-    const highNorm = RefDB.clamp(g.highPsig / 650, 0, 1);
+    // High-side dial: 0 psig (-130 deg) to 650 psig (or 1800 psig for R-744 CO2), smoothly damped in frame loop
+    const highNorm = RefDB.clamp(g.highPsig / highMax, 0, 1);
     needleTarget.high = -130 + highNorm * 260;
 
     if (needleDisplay.low === null) {
@@ -187,16 +195,44 @@
     const s = state.cycle;
     const ref = s.ref;
 
-    // Top cylinder badge
+    // Top cylinder & safety-class + GWP badges from getFluidMeta
+    const safetyCode = ref.safetyCode || ref.safetyClass.split(' ')[0];
     document.getElementById('top-cyl-dot').style.background = ref.cylinderHex;
-    document.getElementById('top-ref-tag').textContent = `${ref.shortName} • ${ref.safetyClass.split(' ')[0]}`;
+    document.getElementById('top-ref-tag').textContent = `${ref.shortName} • ${safetyCode}`;
+    const cylBadge = document.getElementById('top-cyl-badge');
+    if (cylBadge) {
+      cylBadge.style.borderColor =
+        safetyCode === 'A3'
+          ? 'rgba(239, 68, 68, 0.65)'
+          : safetyCode === 'A2L'
+            ? 'rgba(245, 158, 11, 0.65)'
+            : '';
+      cylBadge.style.color =
+        safetyCode === 'A3'
+          ? '#f87171'
+          : safetyCode === 'A2L'
+            ? '#fbbf24'
+            : '';
+    }
+    const gwpBadge = document.getElementById('top-gwp-badge');
+    if (gwpBadge) {
+      const gwpVal = ref.gwpAR4 !== undefined ? ref.gwpAR4 : '—';
+      gwpBadge.textContent = `GWP ${gwpVal}`;
+      gwpBadge.title = `AR4 GWP: ${ref.gwpAR4 ?? '—'} • AR6 GWP: ${ref.gwpAR6 ?? '—'} • Safety: ${safetyCode}`;
+    }
 
     // Refrigerant Info Card
+    const safetyExtras = ref.smallChargeLimitLb > 0
+      ? ` • Charge Limit: ${ref.smallChargeLimitLb.toFixed(2)} lb`
+      : ref.rclKgM3 > 0
+        ? ` • RCL: ${ref.rclKgM3.toFixed(3)} kg/m³`
+        : '';
     document.getElementById('ref-info-card').innerHTML = `
       <div><strong>${ref.name}</strong></div>
       <div>Composition: ${ref.composition}</div>
-      <div>Safety: <strong>${ref.safetyClass}</strong> • Oil: ${ref.oilType}</div>
-      <div>Cylinder: <strong style="color:${ref.cylinderHex}">${ref.cylinderColorName}</strong> • Glide: ${ref.glideF.toFixed(1)}°F • Crit: ${ref.Tc.toFixed(0)}°F</div>
+      <div>Safety: <strong>${ref.safetyClass}</strong> • GWP (AR4): <strong>${ref.gwpAR4 ?? '—'}</strong>${safetyExtras}</div>
+      <div>Oil: ${ref.oilType} • Cylinder: <strong style="color:${ref.cylinderHex}">${ref.cylinderColorName}</strong></div>
+      <div>Glide: ${ref.glideF.toFixed(1)}°F • Crit: ${ref.Tc.toFixed(1)}°F / ${ref.Pc_psia.toFixed(1)} psia</div>
       <div style="margin-top:4px;">${ref.notes}</div>
     `;
 
@@ -257,6 +293,26 @@
       <div>• Heat Rejected (h₂−h₃): <strong>${ph.heatRejected.toFixed(1)} BTU/lb</strong> → Q_cond = <strong>${Math.round(p.qCondBTUHr).toLocaleString()} BTU/hr</strong></div>
       <div>• Sensible / Latent Split: <strong>${Math.round(p.sensibleBTUHr).toLocaleString()}</strong> / <strong>${Math.round(p.latentBTUHr).toLocaleString()} BTU/hr</strong></div>
     `;
+
+    // Live Field Diagnostic Assistant (HVACPhysicsLib.Controls.diagnoseSystemFaults)
+    const hintsBox = document.getElementById('diagnostic-hints-box');
+    if (hintsBox) {
+      if (state.mystery.active) {
+        hintsBox.innerHTML =
+          '<div style="color:var(--warn); font-weight:700;">Diagnostic assistant paused during Mystery Fault quiz.</div><div style="margin-top:2px;">Inspect manifold gauges, SH/SC, sight glass, and coil frosting to choose your diagnosis above.</div>';
+      } else {
+        const hints = Lab.getDiagnosticHints ? Lab.getDiagnosticHints(s) : [];
+        const top3 = hints.slice(0, 3);
+        hintsBox.innerHTML = top3.length
+          ? `<div style="font-weight:800; color:var(--accent);">Top Differential Readout</div><ul>${top3
+              .map(
+                (h) =>
+                  `<li><strong>${h.name}</strong> (${Math.round(h.confidenceScore * 100)}%) — ${h.verificationHint}</li>`
+              )
+              .join('')}</ul>`
+          : '<div>Diagnostic assistant ready.</div>';
+      }
+    }
 
     // Live Formulas
     const cards = Lab.buildFormulaCards(s);
