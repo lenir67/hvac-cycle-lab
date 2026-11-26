@@ -619,11 +619,11 @@
         ref: qs.get('ref'),
         mode: qs.get('mode'),
         valve: qs.get('valve'),
-        theme: qs.get('theme')
+        theme: qs.get('theme') || 'light'
       });
       initialTour = qs.get('tour');
     } catch (_) {
-      // Ignore malformed URL query parameters
+      applyCycleTheme('light');
     }
     recompute();
     if (initialTour === '1' || initialTour === 'true') {
@@ -633,6 +633,10 @@
 
     window.addEventListener('message', (event) => {
       if (!event || !event.data || typeof event.data !== 'object') return;
+      if (event.data.type === 'ish-theme') {
+        applyCycleTheme(event.data.theme);
+        return;
+      }
       if (event.data.type !== 'ish:setCyclePreset') return;
       const { ref, mode, valve, theme, tour } = event.data;
       applyCyclePresetParams({ ref, mode, valve, theme });
