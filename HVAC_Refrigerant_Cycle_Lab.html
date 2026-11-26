@@ -8187,7 +8187,53 @@ function calcSymmetricalComponents(va, vb, vc) {
       0.65,
       10000.0
     );
-    const nomValveDiaIn = 0.10 * Math.sqrt(nomMassFlowLbHr / Math.max(1e-3, unitValveFlow));
+    let nomValveDiaIn = 0.10 * Math.sqrt(nomMassFlowLbHr / Math.max(1e-3, unitValveFlow));
+    let modeNomMassFlowLbMin = nomMassFlowLbMin;
+    let modeNomRp = nomRp;
+    if (mode === 'heating') {
+      const heatNomEvapTempF = refId === 'R744' ? 20 : 25;
+      const stHeatNomEvap = R.satAtTempF(fid, heatNomEvapTempF, true, ATM_PSIA);
+      const heatNomSuctState = R.vaporAtPT(fid, stHeatNomEvap.pPsia, stHeatNomEvap.tDewF + ref.nominalTargetSH);
+      let heatNomCondPsia;
+      let heatNomLiqState;
+      if (refId === 'R744') {
+        heatNomCondPsia = 1400.0;
+        heatNomLiqState = R.stateAtPT(fid, heatNomCondPsia, 76.0);
+      } else {
+        const stHeatNomCond = R.satAtTempF(fid, 106, false, ATM_PSIA);
+        heatNomCondPsia = stHeatNomCond.pPsia;
+        heatNomLiqState = R.liquidAtPT(fid, stHeatNomCond.pPsia, stHeatNomCond.tBubF - ref.nominalTargetSC);
+      }
+      const heatNomComp = Lib.Components.solveCompressor(
+        fid,
+        {
+          kind: Lib.Components.ECompressorKind.Scroll,
+          displacementCfm: compDispCFM,
+          ratedRpm: 3500,
+          currentRpm: 3500,
+          motorEfficiency: 0.88,
+          shellHeatLossFrac: 0.0,
+          valveLeakSeverity: 0.0
+        },
+        heatNomSuctState,
+        heatNomCondPsia
+      );
+      const heatNomMassFlowLbHr = Math.max(1.0, heatNomComp.massFlowLbHr);
+      modeNomMassFlowLbMin = heatNomMassFlowLbHr / 60.0;
+      modeNomRp = Math.max(1.2, heatNomCondPsia / stHeatNomEvap.pPsia);
+      const unitHeatValveFlow = Lib.Components.meteringValveMassFlowLbHr(
+        meterKind,
+        fid,
+        heatNomLiqState,
+        stHeatNomEvap.pPsia,
+        0.10,
+        ref.nominalTargetSH,
+        ref.nominalTargetSH,
+        0.65,
+        10000.0
+      );
+      nomValveDiaIn = 0.10 * Math.sqrt(heatNomMassFlowLbHr / Math.max(1e-3, unitHeatValveFlow));
+    }
 
     const indoorFlowFactor = Math.pow(RefDB.clamp(indoorCFMPerTon / 400, 0.25, 1.4), 0.62) * evapFoulingFactor;
     const outdoorFlowFactor = Math.pow(RefDB.clamp(condAirflowPct / 100, 0.22, 1.2), 0.64) * condFoulingFactor;
@@ -8197,7 +8243,10 @@ function calcSymmetricalComponents(va, vb, vc) {
     const baseCondUA = mode === 'cooling' ? 3000 * outdoorFlowFactor : 1850 * indoorFlowFactor;
 
     const evapAirFactorCur = mode === 'cooling' ? indoorFlowFactor : outdoorFlowFactor;
-    const fxoTargetSH = Lib.RefrigerantService.fixedOrificeTargetSuperheatF(evapAir.wb, condAir.db);
+    const fxoTargetSH =
+      mode === 'cooling'
+        ? Lib.RefrigerantService.fixedOrificeTargetSuperheatF(evapAir.wb, condAir.db)
+        : RefDB.clamp(ref.nominalTargetSH + (evapAir.db - 42) * 0.12 - (condAir.db - 70) * 0.08, 6.0, 18.0);
     const controllerTargetSH =
       metering === 'eev'
         ? 8.0
@@ -8310,7 +8359,7 @@ function calcSymmetricalComponents(va, vb, vc) {
           (condAirflowPct < 75 ? (75 - condAirflowPct) * 0.06 : 0);
 
         if (metering === 'fxo') {
-          targetSC -= (r_p_approx - nomRp) * 1.2;
+          targetSC -= (r_p_approx - modeNomRp) * 1.2;
         }
 
         const maxApproachSC = drierDeltaP > 5
@@ -8453,17 +8502,31 @@ function calcSymmetricalComponents(va, vb, vc) {
             const airStarveDrop = evapAirFactorCur < 0.72 ? (0.72 - evapAirFactorCur) * 14 : 0;
             nextSH = RefDB.clamp(controllerTargetSH - airStarveDrop, 3.5, 14.0);
           } else {
-            const starveRatio = Math.max(0, 1.0 - mDot_valve / Math.max(0.2, nomMassFlowLbMin));
+            const starveRatio = Math.max(0, 1.0 - mDot_valve / Math.max(0.2, modeNomMassFlowLbMin));
             const maxPossibleSH = Math.max(controllerTargetSH, evapAir.db - tEvap - 6);
             nextSH = RefDB.clamp(controllerTargetSH + starveRatio * 68.0, controllerTargetSH, maxPossibleSH);
           }
         } else {
           const flowRatio = mDot_valve / Math.max(0.2, mDot_comp);
-          const nomRatio = mDot_valve / Math.max(0.2, nomMassFlowLbMin * stageSpeed);
+          const nomRatio = mDot_valve / Math.max(0.2, modeNomMassFlowLbMin * stageSpeed);
           const starveBonus = nomRatio < 0.88 ? (0.88 - nomRatio) * 52.0 : 0;
-          const loadBias = (evapAir.db - 75) * 0.22 + (evapAirFactorCur - 1.0) * 18.0;
+          const nomEvapAirDB = mode === 'cooling' ? 75 : 42;
+          const loadBias =
+            (evapAir.db - nomEvapAirDB) * (mode === 'cooling' ? 0.22 : 0.10) +
+            (evapAirFactorCur - 1.0) * 18.0;
+          const normalHeatAccumulator =
+            mode === 'heating' &&
+            !bulbUnstrapped &&
+            chargePct <= 105 &&
+            evapAirFactorCur >= 0.85 &&
+            valveLeakFactor < 0.2 &&
+            drierDeltaP < 5 &&
+            nonCondensablePsi < 5;
+          const overfeedGain = normalHeatAccumulator ? 12.0 : 44.0;
+          const flowTerm = flowRatio > 1.0 ? (1.0 - flowRatio) * overfeedGain : (1.0 - flowRatio) * 44.0;
           const maxPossibleSH = Math.max(12, evapAir.db - tEvap - 4);
-          nextSH = RefDB.clamp(controllerTargetSH + loadBias + starveBonus + (1.0 - flowRatio) * 44.0, 0.0, maxPossibleSH);
+          const minSH = normalHeatAccumulator ? 5.0 : 0.0;
+          nextSH = RefDB.clamp(controllerTargetSH + loadBias + starveBonus + flowTerm, minSH, maxPossibleSH);
         }
         sh = 0.5 * sh + 0.5 * nextSH;
       }

@@ -97,6 +97,10 @@ for (const refId of Object.keys(RefDB.REFRIGERANTS)) {
         !s.performance.isOverheating,
         `${refId} ${mode} ${metering}: Nominal operation must not trigger thermal overheat (tDisch=${s.gauges.dischargeTempF.toFixed(1)}°F, winding=${s.performance.motorWindingTemp.toFixed(1)}°F)`
       );
+      assert(
+        !s.performance.isFloodback && s.gauges.superheatF >= 4.5,
+        `${refId} ${mode} ${metering}: Nominal operation must not trigger liquid floodback/slugging (SH=${s.gauges.superheatF.toFixed(2)}°F)`
+      );
       if (mode === 'cooling') {
         assert(s.performance.indoorSupplyDB < s.inputs.indoorDB, 'Cooling supply air cooler than return');
       } else {
@@ -106,6 +110,24 @@ for (const refId of Object.keys(RefDB.REFRIGERANTS)) {
       const pCheck = 240 * s.performance.compAmps * s.performance.powerFactor;
       assert(Math.abs(pCheck - s.performance.compWatts) < 1.0, `Electrical P=V*I*PF mismatch for ${refId}`);
     }
+  }
+}
+
+// Winter heating ambient sweep (R-410A across TXV, FXO, EEV)
+for (const metering of ['txv', 'fxo', 'eev']) {
+  for (const outdoorDB of [15, 30, 42, 55]) {
+    const sHeat = Physics.solveCycle({
+      refrigerant: 'R410A',
+      mode: 'heating',
+      metering,
+      fault: 'none',
+      outdoorDB,
+      indoorDB: 70
+    });
+    assert(
+      !sHeat.performance.isFloodback && sHeat.gauges.superheatF >= 4.5,
+      `R410A heating ${metering} @ ${outdoorDB}F normal must not slug (SH=${sHeat.gauges.superheatF.toFixed(2)}°F)`
+    );
   }
 }
 
